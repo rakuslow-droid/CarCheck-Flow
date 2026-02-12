@@ -1,3 +1,4 @@
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -6,9 +7,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { MessageSquare, Shield, Bell, User, ExternalLink, RefreshCw } from 'lucide-react';
+import { MessageSquare, Shield, Bell, User, ExternalLink, RefreshCw, QrCode, Copy } from 'lucide-react';
+import Image from 'next/image';
 
 export default function SettingsPage() {
+  const lineBotUrl = "https://line.me/R/ti/p/@carcheck_flow"; // Placeholder URL
+
   return (
     <div className="space-y-8 max-w-4xl animate-in fade-in duration-500">
       <div>
@@ -17,12 +21,65 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="integration" className="space-y-6">
-        <TabsList className="bg-muted p-1 rounded-xl">
+        <TabsList className="bg-muted p-1 rounded-xl w-full sm:w-auto overflow-x-auto justify-start">
           <TabsTrigger value="profile" className="rounded-lg px-6">Profile</TabsTrigger>
           <TabsTrigger value="integration" className="rounded-lg px-6">Integration</TabsTrigger>
           <TabsTrigger value="notifications" className="rounded-lg px-6">Reminders</TabsTrigger>
-          <TabsTrigger value="team" className="rounded-lg px-6">Team</TabsTrigger>
+          <TabsTrigger value="customer-entry" className="rounded-lg px-6">Customer Entry</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="customer-entry" className="space-y-6">
+          <Card className="border-none shadow-sm overflow-hidden">
+            <CardHeader className="bg-primary/5 pb-8">
+              <div className="flex items-center gap-2 mb-2">
+                <QrCode className="text-primary" />
+                <CardTitle className="font-headline">Customer Registration</CardTitle>
+              </div>
+              <CardDescription>
+                Place this QR code in your shop for customers to link their vehicle inspection data via LINE.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col md:flex-row items-center gap-12 pt-8">
+              <div className="bg-white p-6 rounded-2xl shadow-xl border-4 border-primary/10">
+                <Image 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(lineBotUrl)}`}
+                  alt="LINE Registration QR Code"
+                  width={250}
+                  height={250}
+                  className="rounded-lg"
+                />
+                <div className="mt-4 text-center">
+                  <Badge className="bg-primary text-white font-bold">SCAN TO JOIN</Badge>
+                </div>
+              </div>
+              <div className="space-y-6 flex-1">
+                <div className="space-y-2">
+                  <h4 className="font-bold text-lg">Direct Link</h4>
+                  <p className="text-sm text-muted-foreground">Share this link directly with customers or use it in email campaigns.</p>
+                  <div className="flex gap-2">
+                    <Input value={lineBotUrl} readOnly className="bg-muted/50 font-mono text-xs" />
+                    <Button variant="outline" size="icon">
+                      <Copy size={16} />
+                    </Button>
+                  </div>
+                </div>
+                <div className="p-4 rounded-xl bg-accent/5 border border-accent/20">
+                  <p className="text-sm font-bold flex items-center gap-2 mb-2">
+                    <MessageSquare size={16} className="text-primary" />
+                    How it works
+                  </p>
+                  <ol className="text-xs space-y-2 text-muted-foreground list-decimal list-inside">
+                    <li>Customer scans the QR code to add your shop on LINE.</li>
+                    <li>They send a photo of their inspection certificate or sticker.</li>
+                    <li>Our AI extracts the date and adds them to your dashboard.</li>
+                    <li>Automated reminders are scheduled based on your preferences.</li>
+                  </ol>
+                </div>
+                <Button className="w-full bg-primary font-bold">Download QR Kit (.zip)</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="integration" className="space-y-6">
           <Card className="border-none shadow-sm">
@@ -67,12 +124,13 @@ export default function SettingsPage() {
                 <div className="p-4 rounded-xl border bg-muted/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="space-y-1">
                     <p className="text-xs font-bold uppercase text-muted-foreground">Webhook URL</p>
-                    <code className="text-sm">https://carcheck-flow-api.web.app/line-webhook</code>
+                    <code className="text-sm">https://carcheck-flow.web.app/api/line-webhook</code>
                   </div>
                   <Button variant="ghost" size="sm" className="gap-2">
                     Copy URL <ExternalLink size={14} />
                   </Button>
                 </div>
+                <p className="text-[10px] text-muted-foreground">Region: asia-northeast1 (Tokyo)</p>
               </div>
             </CardContent>
             <CardFooter className="bg-muted/30 py-4 flex justify-between">

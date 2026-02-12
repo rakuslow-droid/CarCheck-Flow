@@ -1,0 +1,54 @@
+
+{
+  "entities": {
+    "Vehicle": {
+      "title": "Vehicle",
+      "description": "Represents a vehicle and its inspection status.",
+      "type": "object",
+      "properties": {
+        "lineUserId": {
+          "type": "string",
+          "description": "The LINE User ID of the owner."
+        },
+        "inspectionDate": {
+          "type": "string",
+          "format": "date",
+          "description": "YYYY-MM-DD expiration date."
+        },
+        "model": {
+          "type": "string"
+        },
+        "plate": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Healthy",
+            "Upcoming",
+            "Critical"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "lineUserId",
+        "inspectionDate"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "google.com"
+    ]
+  },
+  "firestore": {
+    "vehicles/{vehicleId}": {
+      "schema": "#/entities/Vehicle",
+      "description": "Collection of vehicles extracted from LINE."
+    }
+  }
+}
