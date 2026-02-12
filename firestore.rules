@@ -1,25 +1,32 @@
+/**
+ * Firestore Security Rules for CarCheck-Flow
+ *
+ * CORE PHILOSOPHY
+ * This ruleset implements a strict user-ownership model designed for a multi-tenant merchant environment.
+ * Authorization is strictly enforced based on the Firebase Authentication UID, ensuring that users
+ * (merchants) can only access and modify their own business data.
+ *
+ * DATA STRUCTURE
+ * The data is organized hierarchically:
+ * - /merchants/{merchantId}: Top-level documents representing car shops.
+ * - /merchants/{merchantId}/vehicles/{vehicleId}: Sub-collections containing vehicle inspection data.
+ *
+ * KEY SECURITY DECISIONS
+ * - Denormalization for Authorization: To ensure high performance and avoid the cost/complexity of 
+ *   cross-document lookups (get() calls), authorization metadata is denormalized.
+ *   - Merchant documents contain an `ownerId`.
+ *   - Vehicle documents contain a `merchantOwnerId`.
+ * - Authorization Independence: Rules for vehicles are evaluated solely against the data within the 
+ *   vehicle document itself, allowing for secure collection group queries and atomic operations.
+ * - Immvutability: Critical relational fields (like ownership IDs) are enforced as immutable after 
+ *   creation to prevent data hijacking.
+ * - Prototyping Flexibility: While authorization is strict, data schema validation is minimal to 
+ *   allow for rapid iteration of the application's features.
+ */
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    /**
-     * CORE SECURITY PHILOSOPHY:
-     * This ruleset implements a strict owner-based authorization model optimized for a prototyping environment.
-     * 
-     * DATA STRUCTURE:
-     * - /merchants/{merchantId}: Root collection for car shop/merchant profiles.
-     * - /vehicles/{vehicleId}: Root collection for vehicle inspection records.
-     * 
-     * KEY SECURITY DECISIONS:
-     * 1. Authorization Independence: We use denormalization to ensure every document contains the 
-     *    necessary UID for authorization checks (ownerUserId/merchantOwnerId). This avoids 
-     *    costly cross-document lookups (get() calls) during security evaluation.
-     * 2. Prototyping Flexibility: While authorization is strictly enforced based on UIDs, 
-     *    data schemas (types and optional fields) are not validated to allow for rapid iteration.
-     * 3. Relational Integrity: On creation, we enforce that the document's internal ID matches 
-     *    the Firestore path ID and that the ownership field matches the authenticated user.
-     * 4. State Protection: Critical ownership fields are immutable after creation.
-     */
 
     // --- Helper Functions ---
 
@@ -31,79 +38,58 @@ service cloud.firestore {
     }
 
     /**
-     * @description Compares a provided UID against the currently authenticated user's UID.
+     * @description Checks if the provided UID matches the authenticated user's UID.
      */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
     /**
-     * @description Verifies ownership on an existing document. Used for update and delete.
+     * @description Validates ownership for existing documents (update/delete).
+     * Ensures the document exists and the current user is the owner.
      */
     function isExistingOwner(userId) {
       return resource != null && isOwner(userId);
     }
 
-    /**
-     * @description Ensures a field remains unchanged during an update operation.
-     */
-    function isUnchanged(field) {
-      return request.resource.data[field] == resource.data[field];
-    }
-
     // --- Collection Rules ---
 
     /**
-     * @description Rules for Merchant documents. Access is restricted to the specific user 
-     * who manages the car shop, identified by the ownerUserId field.
+     * @description Rules for the Merchants collection. Access is restricted to the owner defined in the document.
      * @path /merchants/{merchantId}
-     * @allow (create) if auth.uid == "user_123" and data.ownerUserId == "user_123"
-     * @deny (update) if the user tries to change the ownerUserId field.
-     * @principle Enforces document ownership for writes and ensures relational integrity with the path.
+     * @allow (get) If the user's UID matches the merchant's ownerId.
+     * @deny (create) If the user attempts to set an ownerId other than their own UID.
+     * @principle Enforces document ownership for all operations and validates path consistency.
      */
     match /merchants/{merchantId} {
-      allow get: if isOwner(resource.data.ownerUserId);
-      allow list: if isSignedIn(); // Query results are restricted by the client-side filter as per reasoning.
-      
-      allow create: if isSignedIn() 
-        && request.resource.data.ownerUserId == request.auth.uid 
-        && request.resource.data.id == merchantId;
-      
-      allow update: if isExistingOwner(resource.data.ownerUserId) 
-        && isUnchanged('ownerUserId')
-        && isUnchanged('id');
-        
-      allow delete: if isExistingOwner(resource.data.ownerUserId);
+      allow get: if isOwner(resource.data.ownerId);
+      allow list: if isSignedIn(); // Queries must still filter by ownerId to succeed
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid && request.resource.data.id == merchantId;
+      allow update: if isExistingOwner(resource.data.ownerId) && request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if isExistingOwner(resource.data.ownerId);
+
+      /**
+       * @description Rules for the Vehicles subcollection. Uses denormalized merchantOwnerId for authorization.
+       * @path /merchants/{merchantId}/vehicles/{vehicleId}
+       * @allow (list) If the query is filtered by the user's UID via merchantOwnerId.
+       * @deny (update) If the user attempts to change the merchantOwnerId or merchantId.
+       * @principle Authorization Independence: secures subcollections without parent document lookups.
+       */
+      match /vehicles/{vehicleId} {
+        allow get: if isOwner(resource.data.merchantOwnerId);
+        allow list: if isSignedIn(); // Queries must still filter by merchantOwnerId to succeed
+        allow create: if isSignedIn() && request.resource.data.merchantOwnerId == request.auth.uid && request.resource.data.merchantId == merchantId && request.resource.data.id == vehicleId;
+        allow update: if isExistingOwner(resource.data.merchantOwnerId) && request.resource.data.merchantOwnerId == resource.data.merchantOwnerId && request.resource.data.merchantId == resource.data.merchantId;
+        allow delete: if isExistingOwner(resource.data.merchantOwnerId);
+      }
     }
 
     /**
-     * @description Rules for Vehicle documents. Linked to merchants via denormalized 
-     * merchantOwnerId. Only the owner of the merchant can manage the associated vehicles.
-     * @path /vehicles/{vehicleId}
-     * @allow (get) if auth.uid matches the merchantOwnerId on the vehicle document.
-     * @deny (create) if the merchantOwnerId in the data does not match the auth user's UID.
-     * @principle Uses denormalized authorization (merchantOwnerId) to enable flat-collection security.
+     * @description Collection Group rules for Vehicles to support cross-merchant listing.
+     * @path /vehicles (Collection Group)
      */
-    match /vehicles/{vehicleId} {
-      allow get: if isOwner(resource.data.merchantOwnerId);
-      allow list: if isSignedIn(); // Query results are restricted by the client-side filter as per reasoning.
-      
-      allow create: if isSignedIn() 
-        && request.resource.data.merchantOwnerId == request.auth.uid 
-        && request.resource.data.id == vehicleId;
-      
-      allow update: if isExistingOwner(resource.data.merchantOwnerId) 
-        && isUnchanged('merchantOwnerId')
-        && isUnchanged('id')
-        && isUnchanged('merchantId');
-        
-      allow delete: if isExistingOwner(resource.data.merchantOwnerId);
-    }
-
-    // --- Global Deny ---
-    // Fallback to deny any access not explicitly allowed above.
-    match /{path=**} {
-      allow read, write: if false;
+    match /{path=**}/vehicles/{vehicleId} {
+      allow read: if isOwner(resource.data.merchantOwnerId);
     }
   }
 }

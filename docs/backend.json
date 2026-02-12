@@ -4,11 +4,11 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Merchant",
       "type": "object",
-      "description": "Represents a car shop or merchant registered in the system, typically managed via LINE messaging and a web interface.",
+      "description": "Represents a car shop or merchant registered with the CarCheck-Flow system, primarily for LINE messaging integration and web management.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the Merchant entity (merchantId)."
+          "description": "Unique identifier for the Merchant entity."
         },
         "displayName": {
           "type": "string",
@@ -16,7 +16,7 @@
         },
         "lineAccessToken": {
           "type": "string",
-          "description": "LINE Messaging API access token for this merchant. (Security Note: Handle this token with extreme care; it grants access to send messages on behalf of the merchant.)"
+          "description": "Access token used to authenticate requests to the LINE Messaging API on behalf of this merchant. This token should be managed securely."
         },
         "createdAt": {
           "type": "string",
@@ -35,11 +35,11 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Vehicle",
       "type": "object",
-      "description": "Represents a vehicle and its inspection data, linked to a specific merchant and LINE user, used for inspection reminders.",
+      "description": "Stores information about a vehicle, including its inspection details and associated LINE user, managed by a specific merchant.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the Vehicle entity (vehicleId)."
+          "description": "Unique identifier for the Vehicle entity."
         },
         "merchantId": {
           "type": "string",
@@ -47,20 +47,20 @@
         },
         "lineUserId": {
           "type": "string",
-          "description": "Unique identifier for the LINE user who owns or is associated with this vehicle."
+          "description": "The unique identifier for the LINE user associated with this vehicle. This user receives reminders."
         },
         "inspectionDate": {
           "type": "string",
-          "description": "The vehicle inspection date extracted from the certificate or sticker.",
+          "description": "The date of the vehicle's next inspection.",
           "format": "date"
         },
         "status": {
           "type": "string",
-          "description": "Current status of the vehicle's inspection process (e.g., 'pending', 'processed', 'reminded', 'completed')."
+          "description": "The current status of the vehicle's inspection reminder process (e.g., 'pending', 'reminded', 'completed')."
         },
         "imageUrl": {
           "type": "string",
-          "description": "URL to the uploaded vehicle inspection certificate image stored in Firebase Storage.",
+          "description": "URL to the uploaded vehicle inspection certificate image in Firebase Storage.",
           "format": "uri"
         }
       },
@@ -89,32 +89,36 @@
           "schema": {
             "$ref": "#/backend/entities/Merchant"
           },
-          "description": "Stores merchant details. Each document represents a single car shop. Includes denormalized 'ownerUserId' (string, Firebase Auth UID) for authorization, linking the merchant to a specific Firebase Auth user who manages it via the web interface.",
+          "description": "Top-level collection for car shops. Each merchant document must contain an `ownerId` field, representing the Firebase Auth UID of the user who manages this merchant, for authorization purposes.",
           "params": [
             {
               "name": "merchantId",
-              "description": "Unique identifier for the Merchant entity."
+              "description": "The unique identifier for a specific merchant."
             }
           ]
         }
       },
       {
-        "path": "/vehicles/{vehicleId}",
+        "path": "/merchants/{merchantId}/vehicles/{vehicleId}",
         "definition": {
           "entityName": "Vehicle",
           "schema": {
             "$ref": "#/backend/entities/Vehicle"
           },
-          "description": "Stores vehicle inspection data. Each document represents a single vehicle associated with a merchant and a LINE user. Includes denormalized 'merchantOwnerId' (string, Firebase Auth UID) for authorization, which is copied from the associated merchant's ownerUserId, to enable direct access control for web users without requiring cross-document reads.",
+          "description": "Subcollection storing vehicle and inspection data, hierarchically nested under its managing merchant. Each vehicle document must contain a `merchantOwnerId` field, which is a denormalized copy of the parent merchant's `ownerId`, to enable authorization independence and secure `list` operations without requiring parent document reads (`get()`).",
           "params": [
             {
+              "name": "merchantId",
+              "description": "The unique identifier of the parent merchant."
+            },
+            {
               "name": "vehicleId",
-              "description": "Unique identifier for the Vehicle entity."
+              "description": "The unique identifier for a specific vehicle."
             }
           ]
         }
       }
     ],
-    "reasoning": "The Firestore data structure is designed to adhere strictly to the core principles of Authorization Independence, Structural Segregation, and Access Modeling, ensuring a secure, scalable, and easily debuggable system for CarCheck-Flow. \n\n**Authorization Independence (CRITICAL) & Denormalization:**\nTo eliminate the need for costly and complex `get()` calls in security rules, authorization context is denormalized directly into the documents. \n- For the `/merchants` collection, each `Merchant` document will include an `ownerUserId` field. This field stores the Firebase Auth UID of the user responsible for managing that specific merchant via the web interface. This denormalization allows rules to directly check `request.auth.uid == resource.data.ownerUserId` for access to merchant data, ensuring atomic operations and simplified rule logic.\n- For the `/vehicles` collection, each `Vehicle` document will include a `merchantOwnerId` field. This field is a copy of the `ownerUserId` from the `Merchant` associated with the vehicle. This critical denormalization allows web interface users (authenticated by `request.auth.uid`) to directly query and access their respective vehicles using `request.auth.uid == resource.data.merchantOwnerId` without needing to perform a `get()` call to the parent `Merchant` document. This directly addresses the Authorization Independence mandate by pushing the necessary authorization data to the leaf node, simplifying rules and improving performance.\n\n**QAPs (Rules are not Filters) & Structural Segregation:**\n- **Structural Segregation:** Both `/merchants` and `/vehicles` collections maintain a homogeneous security posture. All documents within `/merchants` are governed by the `ownerUserId`, and all documents within `/vehicles` are governed by `merchantOwnerId`. There's no mixing of publicly accessible data with private data within the same collection, simplifying rule sets.\n- **Query-Based Access (QAPs):** For secure `list` operations, client applications are required to include specific authorization filters in their queries. For example:\n    - To list merchants, a web user's query must include `where('ownerUserId', '==', request.auth.uid)`. The security rules will then ensure that only authenticated users querying for their *own* `ownerUserId` can perform the `list` operation, preventing data leakage.\n    - To list vehicles, a web user's query must include `where('merchantOwnerId', '==', request.auth.uid)`. Similar to merchants, rules enforce that only an authenticated user can list vehicles associated with the merchant they manage.\nThis approach ensures that security rules are not used as data filters after the fact, but rather enforce that queries are inherently secure and scoped to the user's permissions.\n\n**Access Modeling & Data Clarity:**\n- **Path-Based Ownership:** While not strictly hierarchical in terms of subcollections, the data structure uses top-level collections (`/merchants`, `/vehicles`) with explicit `ownerUserId`/`merchantOwnerId` fields for clear, explicit ownership, which functions similarly to path-based ownership in terms of rule simplicity.\n- **Explicit State Modeling:** The `status` field in the `Vehicle` entity allows for clear state tracking (e.g., 'pending', 'processed'), improving debuggability and predictability. \n- **Radical Consistency:** Consistent naming conventions like `merchantId`, `vehicleId`, `ownerUserId`, `merchantOwnerId` are used, making the data structure intuitive and maintainable."
+    "reasoning": "The recommended Firestore structure prioritizes Authorization Independence and Query-Aware Security Rules (QAPs) by using a hierarchical path for vehicles and denormalizing authorization context. \n\n1.  **Merchants Collection (`/merchants/{merchantId}`):**\n    *   Each `Merchant` document will reside in this top-level collection. To enable authorization independence, each `Merchant` document **MUST** include an `ownerId` field. This `ownerId` will store the Firebase Authentication User ID (`request.auth.uid`) of the user who manages this specific merchant. This allows for simple, robust rules like `allow read, write: if request.auth.uid == resource.data.ownerId`.\n    *   **QAP Support:** For listing, a client would query `merchants.where('ownerId', '==', request.auth.uid)`. Rules can then simply verify `request.auth.uid == resource.data.ownerId`, ensuring only authorized merchants are returned.\n\n2.  **Vehicles Subcollection (`/merchants/{merchantId}/vehicles/{vehicleId}`):**\n    *   `Vehicle` documents are structured as a subcollection under their respective `Merchant`. This hierarchical approach inherently links a vehicle to its managing merchant, aligning with the \"Continue Hierarchy for Nested Data\" mandate.\n    *   **Authorization Independence:** To prevent security rules from requiring a `get()` call to the parent `Merchant` document (which would break atomic operations and complicate debugging), each `Vehicle` document **MUST** denormalize the parent merchant's `ownerId` into its own `merchantOwnerId` field. This means the `merchantOwnerId` in a `Vehicle` document will hold the same Firebase Auth UID as the `ownerId` of its parent `Merchant` document. This allows authorization rules for vehicles to be evaluated solely based on data within the `Vehicle` document itself, e.g., `allow read, write: if request.auth.uid == resource.data.merchantOwnerId`.\n    *   **QAP Support:** For listing vehicles, a client can either query `merchants/{merchantId}/vehicles.where('merchantOwnerId', '==', request.auth.uid)` for a specific merchant, or use a Collection Group Query across all vehicles a user owns: `firestore.collectionGroup('vehicles').where('merchantOwnerId', '==', request.auth.uid)`. In both cases, the `merchantOwnerId` field in the `Vehicle` document allows the rule to operate on the document's own data, ensuring only authorized vehicle data is returned without complex server-side filtering."
   }
 }
