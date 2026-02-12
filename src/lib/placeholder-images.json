@@ -1,3 +1,28 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "hero-cars",
+      "description": "Modern automotive maintenance facility",
+      "imageUrl": "https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?q=80&w=1200&h=600&auto=format&fit=crop",
+      "imageHint": "auto garage"
+    },
+    {
+      "id": "inspection-sticker",
+      "description": "Vehicle inspection document close-up",
+      "imageUrl": "https://images.unsplash.com/photo-1517520287167-4bbf64a00d66?q=80&w=600&h=400&auto=format&fit=crop",
+      "imageHint": "document inspection"
+    },
+    {
+      "id": "merchant-avatar",
+      "description": "Professional car shop owner",
+      "imageUrl": "https://images.unsplash.com/photo-1655249481446-25d575f1c054?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxwcm9mZXNzaW9uYWwlMjBwZXJzb258ZW58MHx8fHwxNzcwODAzMjU3fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "professional person"
+    },
+    {
+      "id": "car-demo-1",
+      "description": "Sleek modern sedan",
+      "imageUrl": "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=400&h=300&auto=format&fit=crop",
+      "imageHint": "modern car"
+    }
+  ]
 }
