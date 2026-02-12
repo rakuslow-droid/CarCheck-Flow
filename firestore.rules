@@ -1,0 +1,108 @@
+rules_version = '2';
+
+/**
+ * FIRESTORE SECURITY RULES
+ * 
+ * CORE PHILOSOPHY:
+ * This ruleset enforces a strict "Ownership" model. Every document in the database
+ * is tied to a specific Merchant identified by their Firebase Authentication UID.
+ * Access is granted only if the authenticated user's UID matches the ownership context
+ * established in the document's path.
+ * 
+ * DATA STRUCTURE:
+ * The data is organized hierarchically:
+ * - /merchants/{merchantId}: Top-level profiles for car shops.
+ * - /merchants/{merchantId}/vehicles/{vehicleId}: Sub-collection for vehicles managed by a merchant.
+ * 
+ * KEY SECURITY DECISIONS:
+ * 1. Path-Based Ownership: The merchantId in the path is used as the primary 
+ *    authorization check (request.auth.uid == merchantId).
+ * 2. Sensitive Data Protection: Merchant documents contain 'lineAccessToken', 
+ *    making restricted read access (owner-only) critical.
+ * 3. Relational Integrity: On creation and update, rules verify that internal 
+ *    fields (like merchantId) match the path context to prevent data from being 
+ *    "orphaned" or improperly associated.
+ * 4. Prototyping Flexibility: While authorization is strictly enforced, 
+ *    general data schemas (types, optional fields) are not validated to allow 
+ *    for rapid development.
+ * 
+ * DENORMALIZATION FOR AUTHORIZATION:
+ * To avoid costly get() calls, the merchantId is denormalized into the 
+ * path and the document fields. This allows for simple, performant equality 
+ * checks (request.auth.uid == merchantId).
+ */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- GLOBAL HELPER FUNCTIONS ---
+
+    /**
+     * @description Checks if the user is authenticated with Firebase.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the user's UID matches the provided userId.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Verifies ownership and ensures the document exists for updates/deletes.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    // --- COLLECTION RULES ---
+
+    /**
+     * @description Rules for the Merchant entity. Each merchant document is owned by 
+     * the user whose UID matches the merchantId.
+     * @path /merchants/{merchantId}
+     * @allow (create) if auth.uid matches merchantId and data.id matches merchantId.
+     * @deny (get) if auth.uid does not match merchantId.
+     * @principle Restricts access to a user's own profile and enforces path-to-field consistency.
+     */
+    match /merchants/{merchantId} {
+      allow get, list: if isOwner(merchantId);
+      
+      allow create: if isOwner(merchantId) 
+        && request.resource.data.id == merchantId;
+      
+      allow update: if isExistingOwner(merchantId) 
+        && request.resource.data.id == resource.data.id;
+      
+      allow delete: if isExistingOwner(merchantId);
+
+      /**
+       * @description Rules for the Vehicle entity. Vehicles are nested under merchants.
+       * @path /merchants/{merchantId}/vehicles/{vehicleId}
+       * @allow (list) if auth.uid matches the parent merchantId.
+       * @deny (update) if the merchantId field is changed (immutability).
+       * @principle Uses parent-path context for performant ownership verification.
+       */
+      match /vehicles/{vehicleId} {
+        allow get, list: if isOwner(merchantId);
+        
+        allow create: if isOwner(merchantId) 
+          && request.resource.data.merchantId == merchantId;
+        
+        allow update: if isExistingOwner(merchantId) 
+          && request.resource.data.merchantId == resource.data.merchantId;
+        
+        allow delete: if isExistingOwner(merchantId);
+      }
+    }
+
+    // --- DEFAULT DENY ---
+    // Explicitly deny access to any other paths or unspecified operations.
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

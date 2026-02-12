@@ -1,54 +1,124 @@
-
 {
   "entities": {
-    "Vehicle": {
-      "title": "Vehicle",
-      "description": "Represents a vehicle and its inspection status.",
+    "Merchant": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Merchant",
       "type": "object",
+      "description": "Represents a car shop or merchant registered in the system, typically managed via LINE messaging and a web interface.",
       "properties": {
-        "lineUserId": {
+        "id": {
           "type": "string",
-          "description": "The LINE User ID of the owner."
+          "description": "Unique identifier for the Merchant entity (merchantId)."
         },
-        "inspectionDate": {
+        "displayName": {
           "type": "string",
-          "format": "date",
-          "description": "YYYY-MM-DD expiration date."
+          "description": "The public-facing name of the car shop or merchant."
         },
-        "model": {
-          "type": "string"
-        },
-        "plate": {
-          "type": "string"
-        },
-        "status": {
+        "lineAccessToken": {
           "type": "string",
-          "enum": [
-            "Healthy",
-            "Upcoming",
-            "Critical"
-          ]
+          "description": "LINE Messaging API access token for this merchant. (Security Note: Handle this token with extreme care; it grants access to send messages on behalf of the merchant.)"
         },
         "createdAt": {
           "type": "string",
+          "description": "Timestamp when the merchant record was created.",
           "format": "date-time"
         }
       },
       "required": [
+        "id",
+        "displayName",
+        "lineAccessToken",
+        "createdAt"
+      ]
+    },
+    "Vehicle": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Vehicle",
+      "type": "object",
+      "description": "Represents a vehicle and its inspection data, linked to a specific merchant and LINE user, used for inspection reminders.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Vehicle entity (vehicleId)."
+        },
+        "merchantId": {
+          "type": "string",
+          "description": "Reference to the Merchant who manages this vehicle. (Relationship: Merchant 1:N Vehicle)"
+        },
+        "lineUserId": {
+          "type": "string",
+          "description": "Unique identifier for the LINE user who owns or is associated with this vehicle."
+        },
+        "inspectionDate": {
+          "type": "string",
+          "description": "The vehicle inspection date extracted from the certificate or sticker.",
+          "format": "date"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status of the vehicle's inspection process (e.g., 'pending', 'processed', 'reminded', 'completed')."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL to the uploaded vehicle inspection certificate image stored in Firebase Storage.",
+          "format": "uri"
+        }
+      },
+      "required": [
+        "id",
+        "merchantId",
         "lineUserId",
-        "inspectionDate"
+        "inspectionDate",
+        "status",
+        "imageUrl"
       ]
     }
   },
   "auth": {
     "providers": [
-      "google.com"
+      "password",
+      "anonymous"
     ]
   },
   "firestore": {
-    "vehicles/{vehicleId}": {
-      "schema": "#/entities/Vehicle",
-      "description": "Collection of vehicles extracted from LINE."
-    }
+    "structure": [
+      {
+        "path": "/merchants/{merchantId}",
+        "definition": {
+          "entityName": "Merchant",
+          "schema": {
+            "$ref": "#/backend/entities/Merchant"
+          },
+          "description": "Stores individual merchant profiles. The document ID (`merchantId`) is identical to the Firebase Authentication UID of the merchant user. Includes sensitive 'lineAccessToken' that requires strict security rules. For authorization independence, the 'id' field within the document will explicitly match the 'merchantId' in the path.",
+          "params": [
+            {
+              "name": "merchantId",
+              "description": "The unique identifier for the merchant, which is also the Firebase Auth UID of the owning user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/merchants/{merchantId}/vehicles/{vehicleId}",
+        "definition": {
+          "entityName": "Vehicle",
+          "schema": {
+            "$ref": "#/backend/entities/Vehicle"
+          },
+          "description": "Stores vehicle inspection data belonging to a specific merchant. The 'merchantId' in the path directly provides the authorization context. The 'merchantId' field within the document is denormalized to ensure authorization independence and data consistency.",
+          "params": [
+            {
+              "name": "merchantId",
+              "description": "The unique identifier of the owning merchant, matching the parent collection's document ID."
+            },
+            {
+              "name": "vehicleId",
+              "description": "The unique identifier for the vehicle."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed following the core principles of Authorization Independence, Structural Segregation, and Clear Access Modeling to ensure security, scalability, and debuggability. \n\n1.  **Authorization Independence & Denormalization:**\n    *   **Merchants:** The `/merchants/{merchantId}` collection uses the Firebase Authentication `uid` of the logged-in merchant as the `merchantId` document ID. This direct mapping establishes clear, path-based ownership, allowing security rules to simply check `request.auth.uid == merchantId` without any `get()` operations. The `Merchant` entity's `id` field will redundantly store this `merchantId` for data consistency.\n    *   **Vehicles:** The `/merchants/{merchantId}/vehicles/{vehicleId}` subcollection is nested directly under its owning merchant. This critical design choice means that the `merchantId` is inherently part of the document's path. The `Vehicle` document itself also contains a `merchantId` field. This denormalization (copying the `merchantId` from the parent context into the subcollection's path and document field) completely eliminates the need for `get()` calls on the parent `merchant` document for authorization checks on vehicles. Rules can directly evaluate `request.auth.uid == merchantId`, ensuring atomic operations and simplified rule logic.\n\n2.  **Query Authorization Patterns (QAPs):**\n    *   The hierarchical structure directly supports secure `list` operations. A merchant querying `/merchants/{request.auth.uid}/vehicles` will only ever retrieve vehicles associated with their own `uid`. Firebase Security Rules, applied at the `vehicles` subcollection level, can easily enforce that the `merchantId` in the path matches `request.auth.uid`, thereby acting as a powerful and efficient security filter at the database level rather than requiring application-level filtering. This prevents accidental exposure of data and ensures only authorized data is retrieved.\n\n3.  **Structural Segregation:**\n    *   Each collection (e.g., `/merchants` and `/merchants/{merchantId}/vehicles`) maintains a homogeneous security posture. All documents within `/merchants` are merchant profiles accessible primarily by their respective owners. Similarly, all documents within a `/merchants/{merchantId}/vehicles` subcollection are vehicles belonging to that specific merchant. This segregation prevents complex, conditional rules and simplifies debugging.\n\n4.  **Access Modeling:**\n    *   Path-based ownership is utilized for both `Merchant` and `Vehicle` entities, tying access directly to the authenticated user's `uid`. There are no collaborative data models or global roles explicitly required by the current scope, but the design is extensible for such needs by adding dedicated roles collections if required in the future.\n\n5.  **Data Clarity:**\n    *   The `Vehicle.status` field provides explicit state modeling, preventing ambiguities. Consistent naming conventions like `merchantId` and `vehicleId` are used throughout paths and fields for predictability. Sensitive data like `lineAccessToken` is housed within its owning `Merchant` document, where it can be secured with granular rules (e.g., read-only for Cloud Functions, specific write access for the owner).\n\nThis robust structure minimizes rule complexity, enhances security by design, and ensures efficient data retrieval and management for the CarCheck-Flow application."
   }
 }
