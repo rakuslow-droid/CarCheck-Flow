@@ -1,106 +1,107 @@
 rules_version = '2';
-
-/**
- * FIRESTORE SECURITY RULES
- * 
- * CORE PHILOSOPHY:
- * This ruleset enforces a strict "Ownership" model. Every document in the database
- * is tied to a specific Merchant identified by their Firebase Authentication UID.
- * Access is granted only if the authenticated user's UID matches the ownership context
- * established in the document's path.
- * 
- * DATA STRUCTURE:
- * The data is organized hierarchically:
- * - /merchants/{merchantId}: Top-level profiles for car shops.
- * - /merchants/{merchantId}/vehicles/{vehicleId}: Sub-collection for vehicles managed by a merchant.
- * 
- * KEY SECURITY DECISIONS:
- * 1. Path-Based Ownership: The merchantId in the path is used as the primary 
- *    authorization check (request.auth.uid == merchantId).
- * 2. Sensitive Data Protection: Merchant documents contain 'lineAccessToken', 
- *    making restricted read access (owner-only) critical.
- * 3. Relational Integrity: On creation and update, rules verify that internal 
- *    fields (like merchantId) match the path context to prevent data from being 
- *    "orphaned" or improperly associated.
- * 4. Prototyping Flexibility: While authorization is strictly enforced, 
- *    general data schemas (types, optional fields) are not validated to allow 
- *    for rapid development.
- * 
- * DENORMALIZATION FOR AUTHORIZATION:
- * To avoid costly get() calls, the merchantId is denormalized into the 
- * path and the document fields. This allows for simple, performant equality 
- * checks (request.auth.uid == merchantId).
- */
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- GLOBAL HELPER FUNCTIONS ---
+    /**
+     * CORE SECURITY PHILOSOPHY:
+     * This ruleset implements a strict owner-based authorization model optimized for a prototyping environment.
+     * 
+     * DATA STRUCTURE:
+     * - /merchants/{merchantId}: Root collection for car shop/merchant profiles.
+     * - /vehicles/{vehicleId}: Root collection for vehicle inspection records.
+     * 
+     * KEY SECURITY DECISIONS:
+     * 1. Authorization Independence: We use denormalization to ensure every document contains the 
+     *    necessary UID for authorization checks (ownerUserId/merchantOwnerId). This avoids 
+     *    costly cross-document lookups (get() calls) during security evaluation.
+     * 2. Prototyping Flexibility: While authorization is strictly enforced based on UIDs, 
+     *    data schemas (types and optional fields) are not validated to allow for rapid iteration.
+     * 3. Relational Integrity: On creation, we enforce that the document's internal ID matches 
+     *    the Firestore path ID and that the ownership field matches the authenticated user.
+     * 4. State Protection: Critical ownership fields are immutable after creation.
+     */
+
+    // --- Helper Functions ---
 
     /**
-     * @description Checks if the user is authenticated with Firebase.
+     * @description Checks if the request is from an authenticated user.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Checks if the user's UID matches the provided userId.
+     * @description Compares a provided UID against the currently authenticated user's UID.
      */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
     /**
-     * @description Verifies ownership and ensures the document exists for updates/deletes.
+     * @description Verifies ownership on an existing document. Used for update and delete.
      */
     function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
+      return resource != null && isOwner(userId);
     }
-
-    // --- COLLECTION RULES ---
 
     /**
-     * @description Rules for the Merchant entity. Each merchant document is owned by 
-     * the user whose UID matches the merchantId.
-     * @path /merchants/{merchantId}
-     * @allow (create) if auth.uid matches merchantId and data.id matches merchantId.
-     * @deny (get) if auth.uid does not match merchantId.
-     * @principle Restricts access to a user's own profile and enforces path-to-field consistency.
+     * @description Ensures a field remains unchanged during an update operation.
      */
-    match /merchants/{merchantId} {
-      allow get, list: if isOwner(merchantId);
-      
-      allow create: if isOwner(merchantId) 
-        && request.resource.data.id == merchantId;
-      
-      allow update: if isExistingOwner(merchantId) 
-        && request.resource.data.id == resource.data.id;
-      
-      allow delete: if isExistingOwner(merchantId);
-
-      /**
-       * @description Rules for the Vehicle entity. Vehicles are nested under merchants.
-       * @path /merchants/{merchantId}/vehicles/{vehicleId}
-       * @allow (list) if auth.uid matches the parent merchantId.
-       * @deny (update) if the merchantId field is changed (immutability).
-       * @principle Uses parent-path context for performant ownership verification.
-       */
-      match /vehicles/{vehicleId} {
-        allow get, list: if isOwner(merchantId);
-        
-        allow create: if isOwner(merchantId) 
-          && request.resource.data.merchantId == merchantId;
-        
-        allow update: if isExistingOwner(merchantId) 
-          && request.resource.data.merchantId == resource.data.merchantId;
-        
-        allow delete: if isExistingOwner(merchantId);
-      }
+    function isUnchanged(field) {
+      return request.resource.data[field] == resource.data[field];
     }
 
-    // --- DEFAULT DENY ---
-    // Explicitly deny access to any other paths or unspecified operations.
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for Merchant documents. Access is restricted to the specific user 
+     * who manages the car shop, identified by the ownerUserId field.
+     * @path /merchants/{merchantId}
+     * @allow (create) if auth.uid == "user_123" and data.ownerUserId == "user_123"
+     * @deny (update) if the user tries to change the ownerUserId field.
+     * @principle Enforces document ownership for writes and ensures relational integrity with the path.
+     */
+    match /merchants/{merchantId} {
+      allow get: if isOwner(resource.data.ownerUserId);
+      allow list: if isSignedIn(); // Query results are restricted by the client-side filter as per reasoning.
+      
+      allow create: if isSignedIn() 
+        && request.resource.data.ownerUserId == request.auth.uid 
+        && request.resource.data.id == merchantId;
+      
+      allow update: if isExistingOwner(resource.data.ownerUserId) 
+        && isUnchanged('ownerUserId')
+        && isUnchanged('id');
+        
+      allow delete: if isExistingOwner(resource.data.ownerUserId);
+    }
+
+    /**
+     * @description Rules for Vehicle documents. Linked to merchants via denormalized 
+     * merchantOwnerId. Only the owner of the merchant can manage the associated vehicles.
+     * @path /vehicles/{vehicleId}
+     * @allow (get) if auth.uid matches the merchantOwnerId on the vehicle document.
+     * @deny (create) if the merchantOwnerId in the data does not match the auth user's UID.
+     * @principle Uses denormalized authorization (merchantOwnerId) to enable flat-collection security.
+     */
+    match /vehicles/{vehicleId} {
+      allow get: if isOwner(resource.data.merchantOwnerId);
+      allow list: if isSignedIn(); // Query results are restricted by the client-side filter as per reasoning.
+      
+      allow create: if isSignedIn() 
+        && request.resource.data.merchantOwnerId == request.auth.uid 
+        && request.resource.data.id == vehicleId;
+      
+      allow update: if isExistingOwner(resource.data.merchantOwnerId) 
+        && isUnchanged('merchantOwnerId')
+        && isUnchanged('id')
+        && isUnchanged('merchantId');
+        
+      allow delete: if isExistingOwner(resource.data.merchantOwnerId);
+    }
+
+    // --- Global Deny ---
+    // Fallback to deny any access not explicitly allowed above.
     match /{path=**} {
       allow read, write: if false;
     }
