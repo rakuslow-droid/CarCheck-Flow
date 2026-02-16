@@ -1,124 +1,47 @@
 {
   "entities": {
     "Merchant": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Merchant",
       "type": "object",
-      "description": "Represents a car shop or merchant registered with the CarCheck-Flow system, primarily for LINE messaging integration and web management.",
+      "description": "Represents a car shop (Merchant) in the system. Deployment Region: asia-northeast1.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Merchant entity."
-        },
-        "displayName": {
-          "type": "string",
-          "description": "The public-facing name of the car shop or merchant."
-        },
-        "lineAccessToken": {
-          "type": "string",
-          "description": "Access token used to authenticate requests to the LINE Messaging API on behalf of this merchant. This token should be managed securely."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the merchant record was created.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "ownerId": { "type": "string", "description": "Firebase Auth UID of the shop manager." },
+        "displayName": { "type": "string" },
+        "lineAccessToken": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "displayName",
-        "lineAccessToken",
-        "createdAt"
-      ]
+      "required": ["id", "ownerId", "displayName", "createdAt"]
     },
     "Vehicle": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Vehicle",
       "type": "object",
-      "description": "Stores information about a vehicle, including its inspection details and associated LINE user, managed by a specific merchant.",
+      "description": "Vehicle inspection data extracted from LINE. Deployment Region: asia-northeast1.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Vehicle entity."
-        },
-        "merchantId": {
-          "type": "string",
-          "description": "Reference to the Merchant who manages this vehicle. (Relationship: Merchant 1:N Vehicle)"
-        },
-        "lineUserId": {
-          "type": "string",
-          "description": "The unique identifier for the LINE user associated with this vehicle. This user receives reminders."
-        },
-        "inspectionDate": {
-          "type": "string",
-          "description": "The date of the vehicle's next inspection.",
-          "format": "date"
-        },
-        "status": {
-          "type": "string",
-          "description": "The current status of the vehicle's inspection reminder process (e.g., 'pending', 'reminded', 'completed')."
-        },
-        "imageUrl": {
-          "type": "string",
-          "description": "URL to the uploaded vehicle inspection certificate image in Firebase Storage.",
-          "format": "uri"
-        }
+        "id": { "type": "string" },
+        "merchantId": { "type": "string" },
+        "merchantOwnerId": { "type": "string", "description": "Denormalized ownerId for secure queries." },
+        "lineUserId": { "type": "string" },
+        "inspectionDate": { "type": "string", "format": "date" },
+        "status": { "type": "string", "enum": ["Healthy", "Upcoming", "Critical"] },
+        "plateNumber": { "type": "string" },
+        "modelName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "merchantId",
-        "lineUserId",
-        "inspectionDate",
-        "status",
-        "imageUrl"
-      ]
+      "required": ["id", "merchantId", "merchantOwnerId", "lineUserId", "inspectionDate", "status"]
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
+    "providers": ["password", "anonymous"]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/merchants/{merchantId}",
-        "definition": {
-          "entityName": "Merchant",
-          "schema": {
-            "$ref": "#/backend/entities/Merchant"
-          },
-          "description": "Top-level collection for car shops. Each merchant document must contain an `ownerId` field, representing the Firebase Auth UID of the user who manages this merchant, for authorization purposes.",
-          "params": [
-            {
-              "name": "merchantId",
-              "description": "The unique identifier for a specific merchant."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/merchants/{merchantId}/vehicles/{vehicleId}",
-        "definition": {
-          "entityName": "Vehicle",
-          "schema": {
-            "$ref": "#/backend/entities/Vehicle"
-          },
-          "description": "Subcollection storing vehicle and inspection data, hierarchically nested under its managing merchant. Each vehicle document must contain a `merchantOwnerId` field, which is a denormalized copy of the parent merchant's `ownerId`, to enable authorization independence and secure `list` operations without requiring parent document reads (`get()`).",
-          "params": [
-            {
-              "name": "merchantId",
-              "description": "The unique identifier of the parent merchant."
-            },
-            {
-              "name": "vehicleId",
-              "description": "The unique identifier for a specific vehicle."
-            }
-          ]
-        }
-      }
-    ],
-    "reasoning": "The recommended Firestore structure prioritizes Authorization Independence and Query-Aware Security Rules (QAPs) by using a hierarchical path for vehicles and denormalizing authorization context. \n\n1.  **Merchants Collection (`/merchants/{merchantId}`):**\n    *   Each `Merchant` document will reside in this top-level collection. To enable authorization independence, each `Merchant` document **MUST** include an `ownerId` field. This `ownerId` will store the Firebase Authentication User ID (`request.auth.uid`) of the user who manages this specific merchant. This allows for simple, robust rules like `allow read, write: if request.auth.uid == resource.data.ownerId`.\n    *   **QAP Support:** For listing, a client would query `merchants.where('ownerId', '==', request.auth.uid)`. Rules can then simply verify `request.auth.uid == resource.data.ownerId`, ensuring only authorized merchants are returned.\n\n2.  **Vehicles Subcollection (`/merchants/{merchantId}/vehicles/{vehicleId}`):**\n    *   `Vehicle` documents are structured as a subcollection under their respective `Merchant`. This hierarchical approach inherently links a vehicle to its managing merchant, aligning with the \"Continue Hierarchy for Nested Data\" mandate.\n    *   **Authorization Independence:** To prevent security rules from requiring a `get()` call to the parent `Merchant` document (which would break atomic operations and complicate debugging), each `Vehicle` document **MUST** denormalize the parent merchant's `ownerId` into its own `merchantOwnerId` field. This means the `merchantOwnerId` in a `Vehicle` document will hold the same Firebase Auth UID as the `ownerId` of its parent `Merchant` document. This allows authorization rules for vehicles to be evaluated solely based on data within the `Vehicle` document itself, e.g., `allow read, write: if request.auth.uid == resource.data.merchantOwnerId`.\n    *   **QAP Support:** For listing vehicles, a client can either query `merchants/{merchantId}/vehicles.where('merchantOwnerId', '==', request.auth.uid)` for a specific merchant, or use a Collection Group Query across all vehicles a user owns: `firestore.collectionGroup('vehicles').where('merchantOwnerId', '==', request.auth.uid)`. In both cases, the `merchantOwnerId` field in the `Vehicle` document allows the rule to operate on the document's own data, ensuring only authorized vehicle data is returned without complex server-side filtering."
+    "/merchants/{merchantId}": {
+      "schema": "#/entities/Merchant",
+      "description": "Store for car shop profiles. Managed in Tokyo region."
+    },
+    "/merchants/{merchantId}/vehicles/{vehicleId}": {
+      "schema": "#/entities/Vehicle",
+      "description": "Sub-collection for vehicle data linked to a specific merchant."
+    }
   }
 }
