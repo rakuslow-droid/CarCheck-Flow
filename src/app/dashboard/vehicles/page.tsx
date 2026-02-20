@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -32,20 +34,16 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
-import { useToast } from '@/hooks/use-toast';
 
 export default function VehiclesPage() {
-  const { toast } = useToast();
   const { user } = useUser();
   const firestore = useFirestore();
   const [search, setSearch] = useState('');
 
-  // Securely fetch vehicles owned by this merchant
   const vehiclesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    // We use a collectionGroup query to find all vehicles where merchantOwnerId matches current user
     return query(
-      collection(firestore, 'merchants', 'default', 'vehicles'), // Note: In real app, merchantId is dynamic
+      collection(firestore, 'merchants', 'default', 'vehicles'),
       where('merchantOwnerId', '==', user.uid)
     );
   }, [firestore, user]);

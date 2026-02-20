@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -40,7 +42,6 @@ export default function DashboardOverview() {
         </div>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat, i) => (
           <Card key={i} className="border-none shadow-sm overflow-hidden group hover:shadow-md transition-shadow">
@@ -62,7 +63,6 @@ export default function DashboardOverview() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
-        {/* Main Content Area */}
         <div className="lg:col-span-2 space-y-8">
           <Card className="border-none shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between">
@@ -107,7 +107,6 @@ export default function DashboardOverview() {
           </Card>
         </div>
 
-        {/* Sidebar Analytics Area */}
         <div className="space-y-8">
           <Card className="border-none shadow-sm bg-primary text-primary-foreground">
             <CardHeader>
