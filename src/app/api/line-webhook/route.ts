@@ -4,11 +4,16 @@ import { collection, addDoc, serverTimestamp, query, getDocs, limit } from 'fire
 import { extractInspectionDateFromImage } from '@/ai/flows/extract-inspection-date-from-image-flow';
 import crypto from 'crypto';
 
+export const dynamic = 'force-dynamic';
+
 const CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
 
 function verifySignature(body: string, signature: string | null): boolean {
-  if (!CHANNEL_SECRET || !signature) return false;
+  if (!CHANNEL_SECRET || !signature) {
+    console.error('Missing CHANNEL_SECRET or signature for verification');
+    return false;
+  }
   const hash = crypto
     .createHmac('SHA256', CHANNEL_SECRET)
     .update(body)
@@ -30,7 +35,7 @@ async function getLineImage(messageId: string): Promise<string> {
   if (!response.ok) {
     const errorText = await response.text();
     console.error('LINE Content API Error:', errorText);
-    throw new Error('Failed to fetch image from LINE');
+    throw new Error(`Failed to fetch image from LINE: ${response.status}`);
   }
   
   const buffer = await response.arrayBuffer();
@@ -45,13 +50,23 @@ export async function POST(req: NextRequest) {
     const signature = req.headers.get('x-line-signature');
 
     if (!verifySignature(rawBody, signature)) {
-      console.error('Invalid LINE signature');
+      console.error('Invalid LINE signature or verification failed');
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
     const body = JSON.parse(rawBody);
     const events = body.events || [];
+    
+    // Initialize Firebase only if we have events to process
+    if (events.length === 0) {
+      return NextResponse.json({ status: 'no events' });
+    }
+
     const { firestore } = initializeFirebase();
+    if (!firestore || !firestore.type) {
+       console.error('Firestore failed to initialize in webhook');
+       return new NextResponse('Internal Server Error: Database Unavailable', { status: 500 });
+    }
 
     for (const event of events) {
       if (event.type === 'message' && event.message.type === 'image') {
@@ -64,6 +79,8 @@ export async function POST(req: NextRequest) {
 
           if (aiResult.inspectionDate) {
             const merchantsRef = collection(firestore, 'merchants');
+            // In a real app, we'd look up the merchant by LINE Channel ID or similar.
+            // For this prototype, we'll use the first merchant found.
             const merchantSnap = await getDocs(query(merchantsRef, limit(1)));
             
             if (!merchantSnap.empty) {
@@ -82,6 +99,9 @@ export async function POST(req: NextRequest) {
                 modelName: aiResult.isCertificate ? 'Vehicle Certificate' : 'Inspection Sticker',
                 createdAt: serverTimestamp(),
               });
+              console.log(`Successfully processed vehicle for user ${lineUserId}`);
+            } else {
+              console.warn('No merchant found to associate vehicle data with.');
             }
           }
         } catch (procError: any) {
@@ -93,6 +113,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: 'ok' });
   } catch (error: any) {
     console.error('Webhook Global Error:', error.message);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return new NextResponse(JSON.stringify({ error: error.message }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }

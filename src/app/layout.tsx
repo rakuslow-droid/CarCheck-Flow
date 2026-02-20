@@ -3,6 +3,9 @@ import './globals.css';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { Toaster } from "@/components/ui/toaster";
 
+// Force dynamic rendering to prevent build-time failures if Firebase env vars are missing
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'CarCheck Flow | Smart Inspection Management',
   description: 'Automated vehicle inspection reminders and management via LINE Messaging API.',
