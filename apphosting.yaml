@@ -1,14 +1,26 @@
-# Settings to manage and configure a Firebase App Hosting backend.
-# https://firebase.google.com/docs/app-hosting/configure
-
+kind: "AppHostingYaml"
+schemaVersion: "v1"
 runConfig:
-  # Increase this value if you'd like to automatically spin up
-  # more instances in response to increased traffic.
   maxInstances: 1
   minInstances: 0
   memoryMiB: 512
-
-# Environment variables to be used during build and run.
-env:
+environmentVariables:
   - variable: NEXT_TELEMETRY_DISABLED
     value: "1"
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: "studio-2121462860-bb676"
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: "studio-2121462860-bb676.firebaseapp.com"
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: "studio-2121462860-bb676.firebasestorage.app"
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "610062808946"
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:610062808946:web:0effe2453c04880f5b0feb"
+secrets:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    secret: NEXT_PUBLIC_FIREBASE_API_KEY
+  - variable: LINE_CHANNEL_ACCESS_TOKEN
+    secret: LINE_CHANNEL_ACCESS_TOKEN
+  - variable: LINE_CHANNEL_SECRET
+    secret: LINE_CHANNEL_SECRET

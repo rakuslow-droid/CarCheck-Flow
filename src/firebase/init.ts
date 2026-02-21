@@ -12,23 +12,18 @@ export function initializeFirebase() {
     return getSdks(getApp());
   }
 
-  // If config is invalid, we return dummy/null-safe SDKs or throw a clear error 
-  // depending on the environment. During pre-rendering, we want to avoid crashing.
+  // If config is invalid, we return dummy/null-safe SDKs to prevent crashing during build or hydration
   if (!isFirebaseConfigValid()) {
-    if (typeof window === 'undefined') {
-      console.warn('Firebase initialization skipped: Missing environment variables.');
-      // Return a shape that won't crash immediate destructuring but might fail on usage
-      return {
-        firebaseApp: {} as FirebaseApp,
-        auth: {} as Auth,
-        firestore: {} as Firestore
-      };
-    }
+    console.warn('Firebase initialization skipped: Missing environment variables.');
+    return {
+      firebaseApp: {} as FirebaseApp,
+      auth: {} as Auth,
+      firestore: {} as Firestore
+    };
   }
 
   let firebaseApp: FirebaseApp;
   try {
-    // Try default initialization (works in some Firebase environments automatically)
     firebaseApp = initializeApp(firebaseConfig);
   } catch (e) {
     firebaseApp = initializeApp(firebaseConfig);
@@ -38,8 +33,8 @@ export function initializeFirebase() {
 }
 
 export function getSdks(firebaseApp: FirebaseApp) {
-  // Ensure we handle cases where app might be an empty object from above
-  if (!firebaseApp.options && !isFirebaseConfigValid()) {
+  // If firebaseApp is a dummy object (no options), return dummy services
+  if (!firebaseApp.options) {
     return {
       firebaseApp,
       auth: {} as Auth,
