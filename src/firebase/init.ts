@@ -5,46 +5,64 @@ import { getFirestore, Firestore } from 'firebase/firestore';
 
 /**
  * Initializes Firebase SDKs for both client and server environments.
- * This file is safe to import in both Server Components/Route Handlers and Client Components.
+ * Returns null for services if configuration is missing.
  */
 export function initializeFirebase() {
   if (getApps().length > 0) {
     return getSdks(getApp());
   }
 
-  // If config is invalid, we return dummy/null-safe SDKs to prevent crashing during build or hydration
   if (!isFirebaseConfigValid()) {
     console.warn('Firebase initialization skipped: Missing environment variables.');
     return {
-      firebaseApp: {} as FirebaseApp,
-      auth: {} as Auth,
-      firestore: {} as Firestore
+      firebaseApp: null,
+      auth: null,
+      firestore: null
     };
   }
 
-  let firebaseApp: FirebaseApp;
   try {
-    firebaseApp = initializeApp(firebaseConfig);
+    const firebaseApp = initializeApp(firebaseConfig);
+    return getSdks(firebaseApp);
   } catch (e) {
-    firebaseApp = initializeApp(firebaseConfig);
+    console.error('Firebase initialization error:', e);
+    return {
+      firebaseApp: null,
+      auth: null,
+      firestore: null
+    };
   }
-
-  return getSdks(firebaseApp);
 }
 
 export function getSdks(firebaseApp: FirebaseApp) {
-  // If firebaseApp is a dummy object (no options), return dummy services
-  if (!firebaseApp.options) {
+  if (!firebaseApp || !firebaseApp.options) {
     return {
-      firebaseApp,
-      auth: {} as Auth,
-      firestore: {} as Firestore
+      firebaseApp: null,
+      auth: null,
+      firestore: null
     };
+  }
+
+  // We wrap these in try-catch to ensure that if one service fails (e.g. Auth), 
+  // the others can still be returned if available.
+  let auth: Auth | null = null;
+  let firestore: Firestore | null = null;
+
+  try {
+    auth = getAuth(firebaseApp);
+  } catch (e) {
+    console.error('Failed to initialize Firebase Auth:', e);
+  }
+
+  try {
+    firestore = getFirestore(firebaseApp);
+  } catch (e) {
+    console.error('Failed to initialize Firestore:', e);
   }
 
   return {
     firebaseApp,
-    auth: getAuth(firebaseApp),
-    firestore: getFirestore(firebaseApp)
+    auth,
+    firestore
   };
 }
