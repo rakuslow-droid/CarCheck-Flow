@@ -33,17 +33,19 @@ import {
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collectionGroup, query, where } from 'firebase/firestore';
 
 export default function VehiclesPage() {
   const { user } = useUser();
   const firestore = useFirestore();
   const [search, setSearch] = useState('');
 
+  // Use collectionGroup to find all 'vehicles' subcollections across all merchants
+  // that belong to this owner. This matches the security rules perfectly.
   const vehiclesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
-      collection(firestore, 'merchants', 'default', 'vehicles'),
+      collectionGroup(firestore, 'vehicles'),
       where('merchantOwnerId', '==', user.uid)
     );
   }, [firestore, user]);
