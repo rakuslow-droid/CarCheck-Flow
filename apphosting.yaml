@@ -19,8 +19,8 @@ environmentVariables:
     value: "1:610062808946:web:0effe2453c04880f5b0feb"
 secrets:
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
-    secret: NEXT_PUBLIC_FIREBASE_API_KEY
+    secret: NEXT_PUBLIC_FIREBASE_API_KEY@latest
   - variable: LINE_CHANNEL_ACCESS_TOKEN
-    secret: LINE_CHANNEL_ACCESS_TOKEN
+    secret: LINE_CHANNEL_ACCESS_TOKEN@latest
   - variable: LINE_CHANNEL_SECRET
-    secret: LINE_CHANNEL_SECRET
+    secret: LINE_CHANNEL_SECRET@latest

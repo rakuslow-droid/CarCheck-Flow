@@ -6,14 +6,11 @@ import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
-const CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-const CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
-
 /**
  * Verifies the signature of the request from LINE to ensure it's authentic.
  */
-function verifySignature(body: string, signature: string | null): boolean {
-  if (!CHANNEL_SECRET) {
+function verifySignature(body: string, signature: string | null, secret: string | undefined): boolean {
+  if (!secret) {
     console.error('DEBUG: CHANNEL_SECRET is missing or undefined.');
     return false;
   }
@@ -23,11 +20,8 @@ function verifySignature(body: string, signature: string | null): boolean {
     return false;
   }
 
-  // Debug: Log Secret info
-  console.log(`DEBUG: Secret Length: ${CHANNEL_SECRET.length}, Prefix: ${CHANNEL_SECRET.substring(0, 2)}...`);
-
   const hash = crypto
-    .createHmac('SHA256', CHANNEL_SECRET)
+    .createHmac('SHA256', secret)
     .update(body)
     .digest('base64');
   
@@ -40,14 +34,14 @@ function verifySignature(body: string, signature: string | null): boolean {
 /**
  * Fetches the image content from LINE Messaging API.
  */
-async function getLineImage(messageId: string): Promise<string> {
-  if (!CHANNEL_ACCESS_TOKEN) {
+async function getLineImage(messageId: string, accessToken: string | undefined): Promise<string> {
+  if (!accessToken) {
     throw new Error('LINE_CHANNEL_ACCESS_TOKEN is not configured');
   }
 
   const response = await fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`, {
     headers: {
-      Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}`,
+      Authorization: `Bearer ${accessToken}`,
     },
   });
 
@@ -62,19 +56,19 @@ async function getLineImage(messageId: string): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
-  try {
-    // Debug: Log Token info
-    if (CHANNEL_ACCESS_TOKEN) {
-      console.log(`DEBUG: Token Length: ${CHANNEL_ACCESS_TOKEN.length}, Prefix: ${CHANNEL_ACCESS_TOKEN.substring(0, 2)}...`);
-    } else {
-      console.error('DEBUG: CHANNEL_ACCESS_TOKEN is missing or undefined.');
-    }
+  const CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  const CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
 
+  // Debug: Log variable availability
+  console.log(`DEBUG: Secret Status - Length: ${CHANNEL_SECRET?.length || 0}, Prefix: ${CHANNEL_SECRET?.substring(0, 2) || 'XX'}...`);
+  console.log(`DEBUG: Token Status - Length: ${CHANNEL_ACCESS_TOKEN?.length || 0}, Prefix: ${CHANNEL_ACCESS_TOKEN?.substring(0, 2) || 'XX'}...`);
+
+  try {
     const rawBody = await req.text();
     const signature = req.headers.get('x-line-signature');
 
-    // Strict signature verification with debug logs
-    if (!verifySignature(rawBody, signature)) {
+    // Strict signature verification
+    if (!verifySignature(rawBody, signature, CHANNEL_SECRET)) {
       console.warn('DEBUG: Signature verification failed. Returning 401.');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
@@ -98,13 +92,13 @@ export async function POST(req: NextRequest) {
 
         try {
           // Fetch image from LINE
-          const imageDataUri = await getLineImage(messageId);
+          const imageDataUri = await getLineImage(messageId, CHANNEL_ACCESS_TOKEN);
           
           // Extract date using Genkit AI flow
           const aiResult = await extractInspectionDateFromImage({ imageDataUri });
 
           if (aiResult.inspectionDate) {
-            // Find the first merchant to associate the vehicle (Prototyping logic)
+            // Find the first merchant to associate the vehicle
             const merchantsRef = collection(firestore, 'merchants');
             const merchantSnap = await getDocs(query(merchantsRef, limit(1)));
             
@@ -124,6 +118,9 @@ export async function POST(req: NextRequest) {
                 modelName: aiResult.isCertificate ? 'Vehicle Certificate' : 'Inspection Sticker',
                 createdAt: serverTimestamp(),
               });
+              console.log(`DEBUG: Successfully added vehicle for User: ${lineUserId}`);
+            } else {
+              console.warn('DEBUG: No merchant found to associate vehicle with.');
             }
           }
         } catch (procError: any) {
