@@ -13,14 +13,26 @@ const CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
  * Verifies the signature of the request from LINE to ensure it's authentic.
  */
 function verifySignature(body: string, signature: string | null): boolean {
-  if (!CHANNEL_SECRET || !signature) {
+  if (!CHANNEL_SECRET) {
+    console.error('DEBUG: CHANNEL_SECRET is missing or undefined.');
     return false;
   }
+  
+  if (!signature) {
+    console.error('DEBUG: x-line-signature header is missing.');
+    return false;
+  }
+
+  // Debug: Log Secret info
+  console.log(`DEBUG: Secret Length: ${CHANNEL_SECRET.length}, Prefix: ${CHANNEL_SECRET.substring(0, 2)}...`);
 
   const hash = crypto
     .createHmac('SHA256', CHANNEL_SECRET)
     .update(body)
     .digest('base64');
+  
+  console.log(`DEBUG: Incoming Signature: ${signature}`);
+  console.log(`DEBUG: Generated Hash: ${hash}`);
   
   return hash === signature;
 }
@@ -51,11 +63,19 @@ async function getLineImage(messageId: string): Promise<string> {
 
 export async function POST(req: NextRequest) {
   try {
+    // Debug: Log Token info
+    if (CHANNEL_ACCESS_TOKEN) {
+      console.log(`DEBUG: Token Length: ${CHANNEL_ACCESS_TOKEN.length}, Prefix: ${CHANNEL_ACCESS_TOKEN.substring(0, 2)}...`);
+    } else {
+      console.error('DEBUG: CHANNEL_ACCESS_TOKEN is missing or undefined.');
+    }
+
     const rawBody = await req.text();
     const signature = req.headers.get('x-line-signature');
 
-    // Restore strict signature verification
+    // Strict signature verification with debug logs
     if (!verifySignature(rawBody, signature)) {
+      console.warn('DEBUG: Signature verification failed. Returning 401.');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
