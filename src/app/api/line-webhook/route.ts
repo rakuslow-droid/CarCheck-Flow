@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
   const CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
   const CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
 
-  // Debug: Log variable availability
+  // Debug: Log variable availability with extra detail for troubleshooting
   console.log(`DEBUG: Final Check - Secret Length: ${CHANNEL_SECRET?.length || 0}, Prefix: ${CHANNEL_SECRET?.substring(0, 2) || 'XX'}...`);
   console.log(`DEBUG: Token Status - Length: ${CHANNEL_ACCESS_TOKEN?.length || 0}, Prefix: ${CHANNEL_ACCESS_TOKEN?.substring(0, 2) || 'XX'}...`);
 
