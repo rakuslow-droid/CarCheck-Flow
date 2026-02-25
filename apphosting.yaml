@@ -20,7 +20,13 @@ environmentVariables:
 secrets:
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
     secret: NEXT_PUBLIC_FIREBASE_API_KEY
+    availability:
+      - RUNTIME
   - variable: LINE_CHANNEL_ACCESS_TOKEN
     secret: LINE_CHANNEL_ACCESS_TOKEN
+    availability:
+      - RUNTIME
   - variable: LINE_CHANNEL_SECRET
     secret: LINE_CHANNEL_SECRET
+    availability:
+      - RUNTIME
