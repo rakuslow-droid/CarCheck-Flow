@@ -17,20 +17,5 @@ environmentVariables:
     value: "610062808946"
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
     value: "1:610062808946:web:0effe2453c04880f5b0feb"
-secrets:
-  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
-    secret: NEXT_PUBLIC_FIREBASE_API_KEY
-    availability:
-      - RUNTIME
-  - variable: LINE_CHANNEL_ACCESS_TOKEN
-    secret: LINE_CHANNEL_ACCESS_TOKEN
-    availability:
-      - RUNTIME
-  - variable: LINE_CHANNEL_SECRET
-    secret: LINE_CHANNEL_SECRET
-    availability:
-      - RUNTIME
-  - variable: GEMINI_API_KEY
-    secret: GEMINI_API_KEY
-    availability:
-      - RUNTIME
+# ここから下の「secrets:」セクションを削除することで、
+# 今後はCloud Run側のシークレット設定を勝手に消されなくなります。
