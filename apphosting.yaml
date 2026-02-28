@@ -1,9 +1,11 @@
 kind: "AppHostingYaml"
 schemaVersion: "v1"
+
 runConfig:
   maxInstances: 1
   minInstances: 0
   memoryMiB: 512
+
 environmentVariables:
   - variable: NEXT_TELEMETRY_DISABLED
     value: "1"
@@ -17,20 +19,25 @@ environmentVariables:
     value: "610062808946"
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
     value: "1:610062808946:web:0effe2453c04880f5b0feb"
+
 secrets:
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
     secret: NEXT_PUBLIC_FIREBASE_API_KEY
     availability:
       - RUNTIME
+      - BUILD
   - variable: LINE_CHANNEL_ACCESS_TOKEN
     secret: LINE_CHANNEL_ACCESS_TOKEN
     availability:
       - RUNTIME
+      - BUILD
   - variable: LINE_CHANNEL_SECRET
     secret: LINE_CHANNEL_SECRET
     availability:
       - RUNTIME
+      - BUILD
   - variable: GEMINI_API_KEY
     secret: GEMINI_API_KEY
     availability:
       - RUNTIME
+      - BUILD
