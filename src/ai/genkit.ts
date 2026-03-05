@@ -3,7 +3,7 @@ import { googleAI } from "@genkit-ai/google-genai";
 
 export const ai = genkit({
   plugins: [googleAI({ apiKey: process.env.GOOGLE_GENAI_API_KEY })],
-  // 修正：プロバイダー名を外し、ハイフンで繋いだ形式にします
+  // 修正：最もシンプルで標準的な名前にします
   model: "gemini-1.5-flash",
 });
 
