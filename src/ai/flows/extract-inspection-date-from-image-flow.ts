@@ -1,17 +1,14 @@
+// src/ai/flows/extract-inspection-date-from-image-flow.ts
 "use server";
-/**
- * @fileOverview A Genkit flow for extracting the inspection date from a Japanese vehicle inspection certificate or sticker image.
- */
 
 import { ai } from "@/ai/genkit";
 import { z } from "genkit";
-// 修正：モデル変数をインポート
 
 const ExtractInspectionDateFromImageInputSchema = z.object({
   imageDataUri: z
     .string()
     .describe(
-      "A photo of a vehicle's inspection certificate (車検証) or sticker (車検ステッカー), as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'.",
+      "A photo of a vehicle's inspection certificate (車検証) or sticker (車検ステッカー), as a data URI.",
     ),
 });
 
@@ -48,22 +45,25 @@ export async function extractInspectionDateFromImage(input: {
   return extractInspectionDateFromImageFlow(input);
 }
 
-const prompt = ai.definePrompt({
+const extractPrompt = ai.definePrompt({
   name: "extractInspectionDateFromImagePrompt",
-  // 修正：model の行を削除。これで ai インスタンスのデフォルトが使われます。
+  // genkit.ts のデフォルトモデルを使用するため model 指定を削除
   input: { schema: ExtractInspectionDateFromImageInputSchema },
   output: { schema: ExtractInspectionDateFromImageOutputSchema },
-  prompt: `You are an expert at reading Japanese vehicle inspection documents. Your task is to accurately extract the "有効期間の満了する日" (Inspection Expiration Date) from the provided image.
-
-The image will be either a "車検証" (Vehicle Inspection Certificate) or a "車検ステッカー" (Inspection Sticker).
-- On a certificate, look for the field labeled "有効期間の満了する日".
-- On a sticker, look for the large numbers indicating the year and month.
-
-You must provide the date in YYYY-MM-DD format. If the date is in the Japanese Imperial calendar (e.g., Reiwa 6), convert it to the Gregorian calendar (e.g., 2024).
-
-Respond in JSON format.
-
-Photo: {{media url=imageDataUri}}`,
+  prompt: [
+    {
+      text: `You are an expert at reading Japanese vehicle inspection documents. Your task is to accurately extract the "有効期間の満了する日" (Inspection Expiration Date) from the provided image.
+      
+      The image will be either a "車検証" (Vehicle Inspection Certificate) or a "車検ステッカー" (Inspection Sticker).
+      - On a certificate, look for the field labeled "有効期間の満了する日".
+      - On a sticker, look for the large numbers indicating the year and month.
+      
+      You must provide the date in YYYY-MM-DD format. If the date is in the Japanese Imperial calendar (e.g., Reiwa 6), convert it to the Gregorian calendar (e.g., 2024).
+      
+      Respond in JSON format.`,
+    },
+    { media: { url: "{{input.imageDataUri}}" } },
+  ],
 });
 
 const extractInspectionDateFromImageFlow = ai.defineFlow(
@@ -73,7 +73,11 @@ const extractInspectionDateFromImageFlow = ai.defineFlow(
     outputSchema: ExtractInspectionDateFromImageOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
-    return output!;
+    // 明示的に prompt 経由で呼び出し
+    const { output } = await extractPrompt(input);
+    if (!output) {
+      throw new Error("AI failed to generate output");
+    }
+    return output;
   },
 );
