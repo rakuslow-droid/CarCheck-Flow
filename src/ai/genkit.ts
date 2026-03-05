@@ -1,6 +1,6 @@
 // src/ai/genkit.ts
 import { genkit } from "genkit";
-import { googleAI, gemini15Flash } from "@genkit-ai/googleai"; // パッケージ名を修正
+import { googleAI, gemini15Flash } from "@genkit-ai/googleai";
 
 export const ai = genkit({
   plugins: [
@@ -9,7 +9,8 @@ export const ai = genkit({
       apiVersion: "v1beta",
     }),
   ],
-  model: gemini15Flash, // デフォルトモデルとして指定
+  // 修正：文字列ではなく定数を指定
+  model: gemini15Flash,
 });
 
 console.log("Checking API Key setup... Key found!");
