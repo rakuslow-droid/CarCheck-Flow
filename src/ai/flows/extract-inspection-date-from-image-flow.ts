@@ -50,8 +50,8 @@ export async function extractInspectionDateFromImage(input: {
 
 const prompt = ai.definePrompt({
   name: "extractInspectionDateFromImagePrompt",
-  // ここも同様に文字列で直接指定します
-  model: "googleAI/gemini-1.5-flash-latest",
+  // 修正：こちらも合わせます
+  model: "gemini-1.5-flash",
   input: { schema: ExtractInspectionDateFromImageInputSchema },
   output: { schema: ExtractInspectionDateFromImageOutputSchema },
   prompt: `You are an expert at reading Japanese vehicle inspection documents. Your task is to accurately extract the "有効期間の満了する日" (Inspection Expiration Date) from the provided image.
