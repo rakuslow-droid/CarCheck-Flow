@@ -34,12 +34,11 @@ const extractPrompt = ai.definePrompt({
       Convert Japanese Imperial dates (e.g., Reiwa) to YYYY-MM-DD.
       Respond in JSON.`,
     },
-    // 修正：url文字列ではなく、メディアオブジェクトとして渡す
     {
       media: {
         url: "{{input.imageDataUri}}",
-        // 下記のように指定することで、Data URIからContentTypeを自動判別させます
-        // もしエラーが続く場合は 'image/jpeg' と直接書くことも可能です
+        // 明示的に image/jpeg を指定することでエラーを回避します
+        contentType: "image/jpeg",
       },
     },
   ],
@@ -48,7 +47,7 @@ const extractPrompt = ai.definePrompt({
 export async function extractInspectionDateFromImage(input: {
   imageDataUri: string;
 }) {
-  // Genkitの仕様により、mediaパーツを含む場合は明示的にパーツとして組み立てて呼ぶ方が確実です
+  // input.imageDataUri は route.ts で data:image/jpeg;base64,... の形式で作られている前提です
   const { output } = await extractPrompt(input);
 
   if (!output) {
