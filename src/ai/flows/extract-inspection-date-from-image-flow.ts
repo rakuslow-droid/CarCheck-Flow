@@ -1,10 +1,6 @@
 "use server";
 /**
  * @fileOverview A Genkit flow for extracting the inspection date from a Japanese vehicle inspection certificate or sticker image.
- *
- * - extractInspectionDateFromImage - A function that handles the date extraction process.
- * - ExtractInspectionDateFromImageInput - The input type for the extractInspectionDateFromImage function.
- * - ExtractInspectionDateFromImageOutput - The return type for the extractInspectionDateFromImage function.
  */
 
 import { ai } from "@/ai/genkit";
@@ -59,8 +55,9 @@ export async function extractInspectionDateFromImage(
 
 const prompt = ai.definePrompt({
   name: "extractInspectionDateFromImagePrompt",
-  // 62行目の修正ポイント：
-  model: "gemini-1.5-flash-latest", // -latest を付ける、または 'googleAI/gemini-1.5-flash'  input: { schema: ExtractInspectionDateFromImageInputSchema },
+  // 修正：こちらも 'googleAI/' を付加
+  model: "googleAI/gemini-1.5-flash-latest",
+  input: { schema: ExtractInspectionDateFromImageInputSchema },
   output: { schema: ExtractInspectionDateFromImageOutputSchema },
   prompt: `You are an expert at reading Japanese vehicle inspection documents. Your task is to accurately extract the "有効期間の満了する日" (Inspection Expiration Date) from the provided image.
 
