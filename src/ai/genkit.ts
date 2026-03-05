@@ -3,7 +3,7 @@ import { googleAI } from "@genkit-ai/google-genai";
 
 export const ai = genkit({
   plugins: [googleAI({ apiKey: process.env.GOOGLE_GENAI_API_KEY })],
-  // 最新版（latest）ではなく、安定版の flash を指定してロードを速めます
+  // 文字列で指定。プロバイダー名（googleAI/）を必ず含めます
   model: "googleAI/gemini-1.5-flash",
 });
 
