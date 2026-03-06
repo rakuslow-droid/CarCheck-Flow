@@ -14,9 +14,10 @@ const ExtractInspectionDateFromImageOutputSchema = z.object({
 export async function extractInspectionDateFromImage(input: {
   imageDataUri: string;
 }) {
-  // 修正：モデル名を 'gemini-1.5-flash-002' に固定します
+  // 修正：modelには genkit.ts で設定したデフォルトを使うため、ここでは指定を外すか、
+  // あるいは genkit からインポートした定数を使います。
   const { output } = await ai.generate({
-    model: "googleai/gemini-1.5-flash-002",
+    // model の行を削除するか、デフォルトに任せます
     prompt: [
       {
         text: `あなたは日本の車検書類の専門家です。
