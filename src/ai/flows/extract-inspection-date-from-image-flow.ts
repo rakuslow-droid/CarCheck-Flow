@@ -18,7 +18,7 @@ export async function extractInspectionDateFromImage(input: {
 
   const { output } = await ai.generate({
     // 文字列 "googleai/gemini-1.5-flash" の代わりにオブジェクトを渡します
-    model: gemini15Flash,
+    model: "googleai/gemini-3-flash-preview",
     prompt: [
       {
         text: "この画像から車検の「有効期間の満了する日」を抜き出し、YYYY-MM-DD形式のJSONで回答してください。",
