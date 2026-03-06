@@ -15,9 +15,6 @@ const ExtractInspectionDateFromImageOutputSchema = z.object({
   confidence: z.number().optional(),
 });
 
-/**
- * プロンプトの定義
- */
 const extractPrompt = ai.definePrompt({
   name: "extractInspectionDateFromImagePrompt",
   input: { schema: ExtractInspectionDateFromImageInputSchema },
@@ -25,8 +22,8 @@ const extractPrompt = ai.definePrompt({
   prompt: [
     {
       text: `あなたは日本の車検書類の専門家です。
-      提供された画像から「有効期間の満了する日」を抽出してください。
-      和暦（令和など）は西暦（YYYY-MM-DD）に変換してください。
+      画像から「有効期間の満了する日」を抽出してください。
+      和暦は西暦（YYYY-MM-DD）に変換してください。
       JSON形式で回答してください。`,
     },
     {
@@ -38,13 +35,10 @@ const extractPrompt = ai.definePrompt({
   ],
 });
 
-/**
- * 外部から呼び出されるメイン関数
- */
 export async function extractInspectionDateFromImage(input: {
   imageDataUri: string;
 }) {
-  // 修正：extractPrompt自体をそのまま実行します
+  // 修正：定義したプロンプト(extractPrompt)を直接呼び出します
   const { output } = await extractPrompt(input);
 
   if (!output) {
