@@ -17,14 +17,15 @@ const ExtractInspectionDateFromImageOutputSchema = z.object({
 
 const extractPrompt = ai.definePrompt({
   name: "extractInspectionDateFromImagePrompt",
+  // 修正：ここでも同じモデル名を指定
+  model: "googleai/gemini-1.5-flash-latest",
   input: { schema: ExtractInspectionDateFromImageInputSchema },
   output: { schema: ExtractInspectionDateFromImageOutputSchema },
   prompt: [
     {
       text: `あなたは日本の車検書類の専門家です。
-      画像から「有効期間の満了する日」を抽出してください。
-      和暦は西暦（YYYY-MM-DD）に変換してください。
-      JSON形式で回答してください。`,
+      提供された画像から「有効期間の満了する日」を抽出してください。
+      和暦は西暦（YYYY-MM-DD）に変換して、JSON形式で回答してください。`,
     },
     {
       media: {
