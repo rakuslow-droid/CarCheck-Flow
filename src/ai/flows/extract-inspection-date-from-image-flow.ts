@@ -4,10 +4,6 @@
 import { ai } from "@/ai/genkit";
 import { z } from "genkit";
 
-const ExtractInspectionDateFromImageInputSchema = z.object({
-  imageDataUri: z.string(),
-});
-
 const ExtractInspectionDateFromImageOutputSchema = z.object({
   inspectionDate: z.string(),
   isCertificate: z.boolean(),
@@ -15,32 +11,28 @@ const ExtractInspectionDateFromImageOutputSchema = z.object({
   confidence: z.number().optional(),
 });
 
-const extractPrompt = ai.definePrompt({
-  name: "extractInspectionDateFromImagePrompt",
-  // 修正：ここでも同じモデル名を指定
-  model: "googleai/gemini-1.5-flash-latest",
-  input: { schema: ExtractInspectionDateFromImageInputSchema },
-  output: { schema: ExtractInspectionDateFromImageOutputSchema },
-  prompt: [
-    {
-      text: `あなたは日本の車検書類の専門家です。
-      提供された画像から「有効期間の満了する日」を抽出してください。
-      和暦は西暦（YYYY-MM-DD）に変換して、JSON形式で回答してください。`,
-    },
-    {
-      media: {
-        url: "{{input.imageDataUri}}",
-        contentType: "image/jpeg",
-      },
-    },
-  ],
-});
-
 export async function extractInspectionDateFromImage(input: {
   imageDataUri: string;
 }) {
-  // 修正：定義したプロンプト(extractPrompt)を直接呼び出します
-  const { output } = await extractPrompt(input);
+  // 修正：モデル名を googleai/ 付きで指定
+  const { output } = await ai.generate({
+    model: "googleai/gemini-1.5-flash",
+    prompt: [
+      {
+        text: `あなたは日本の車検書類の専門家です。
+        提供された画像（車検ステッカー）から「有効期間の満了する日」を抽出してください。
+        大きな数字が月、右上の小さな数字が年（和暦）です。
+        西暦（YYYY-MM-DD）に変換して、JSON形式で回答してください。`,
+      },
+      {
+        media: {
+          url: input.imageDataUri,
+          contentType: "image/jpeg",
+        },
+      },
+    ],
+    output: { schema: ExtractInspectionDateFromImageOutputSchema },
+  });
 
   if (!output) {
     throw new Error("AI extraction failed to produce output");

@@ -8,8 +8,8 @@ export const ai = genkit({
       apiKey: process.env.GOOGLE_GENAI_API_KEY,
     }),
   ],
-  // 修正：明示的に文字列で指定することで、エンドポイントの構築ミスを防ぎます
-  model: "googleai/gemini-1.5-flash-latest",
+  // 修正：プレフィックスを付けて、エンドポイントを固定します
+  model: "googleai/gemini-1.5-flash",
 });
 
 console.log("Checking API Key setup... Key found!");
