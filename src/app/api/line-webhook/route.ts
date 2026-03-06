@@ -1,3 +1,4 @@
+// src/app/api/line-webhook/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase/init";
 import {
@@ -72,16 +73,21 @@ async function getLineImage(
   accessToken: string | undefined,
 ): Promise<string> {
   if (!accessToken) throw new Error("LINE_CHANNEL_ACCESS_TOKEN is missing");
+
   const response = await fetch(
     `https://api-data.line.me/v2/bot/message/${messageId}/content`,
     {
       headers: { Authorization: `Bearer ${accessToken}` },
     },
   );
+
   if (!response.ok)
     throw new Error(`Failed to fetch image: ${response.status}`);
-  const buffer = await response.arrayBuffer();
-  const base64 = Buffer.from(buffer).toString("base64");
+
+  // 修正ポイント: arrayBuffer を確実に Uint8Array 経由で Buffer に変換する
+  const arrayBuffer = await response.arrayBuffer();
+  const base64 = Buffer.from(new Uint8Array(arrayBuffer)).toString("base64");
+
   const contentType = response.headers.get("content-type") || "image/jpeg";
   return `data:${contentType};base64,${base64}`;
 }
@@ -120,6 +126,11 @@ export async function POST(req: NextRequest) {
             const imageDataUri = await getLineImage(
               messageId,
               CHANNEL_ACCESS_TOKEN,
+            );
+
+            // デバッグログ: 生成されたURIの長さを確認
+            console.log(
+              `DEBUG: ImageDataUri created. Length: ${imageDataUri.length}`,
             );
 
             console.log("DEBUG: Starting AI extraction...");
@@ -164,7 +175,8 @@ export async function POST(req: NextRequest) {
               );
             }
           } catch (e: any) {
-            console.error("Processing Error:", e.message);
+            // エラーの詳細をフルで出力するように変更
+            console.error("DEBUG: Processing Error Details:", e);
             await replyToLine(
               replyToken,
               "申し訳ありません、画像の処理中にエラーが発生しました。",
