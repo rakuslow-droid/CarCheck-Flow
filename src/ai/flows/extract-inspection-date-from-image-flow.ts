@@ -25,23 +25,13 @@ const ExtractInspectionDateFromImageOutputSchema = z.object({
 export async function extractInspectionDateFromImage(input: {
   imageDataUri: string;
 }) {
-  // 修正ポイント:
-  // 1. モデル名を "googleai/gemini-1.5-flash" と明示的に指定
-  // 2. definePrompt を介さず直接 generate を実行してURL構築エラーを防止
   const { output } = await ai.generate({
+    // 修正：モデル識別子のみを指定
     model: "googleai/gemini-1.5-flash",
     prompt: [
       {
         text: `あなたは日本の自動車整備業界の専門家です。
-        提供された画像（車検ステッカーまたは車検証）から「有効期間の満了する日」を抽出してください。
-        
-        【ステッカーの読み取りルール】
-        - 中央の大きな数字：満了する「月」
-        - 右上の小さな数字：満了する「年（和暦）」
-        
-        【出力ルール】
-        - 和暦は必ず西暦（YYYY-MM-DD）に変換してください。
-        - JSON形式で回答してください。`,
+        提供された画像から「有効期間の満了する日」を抽出し、YYYY-MM-DD形式のJSONで回答してください。`,
       },
       {
         media: {
@@ -54,7 +44,6 @@ export async function extractInspectionDateFromImage(input: {
   });
 
   if (!output) {
-    console.error("DEBUG: AI produced no output.");
     throw new Error("AI extraction failed to produce output");
   }
 

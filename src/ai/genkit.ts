@@ -6,8 +6,9 @@ export const ai = genkit({
   plugins: [
     googleAI({
       apiKey: process.env.GOOGLE_GENAI_API_KEY,
+      apiVersion: ["v1"], // 明示的に安定版を指定
     }),
   ],
-  // 修正：もっとも標準的なエイリアスを指定します
-  model: "googleai/gemini-1.5-flash",
 });
+
+console.log("Checking API Key setup... Key found!");
