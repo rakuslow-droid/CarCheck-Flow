@@ -1,14 +1,12 @@
-// src/ai/genkit.ts
 import { genkit } from "genkit";
-import { googleAI } from "@genkit-ai/googleai"; // 元のパスに戻しました
+import { googleAI } from "@genkit-ai/googleai";
 
 export const ai = genkit({
   plugins: [
     googleAI({
       apiKey: process.env.GOOGLE_GENAI_API_KEY,
-      // APIバージョンを v1 に固定して 404 を回避
-      // 型定義に合わせて ['v1'] と記述します
-      apiVersion: ["v1"],
+      // 404エラーの原因となっていた apiVersion: ["v1"] を削除しました。
+      // これにより、Gemini 1.5 シリーズが正しく動作する v1beta が使用されます。
     }),
   ],
 });

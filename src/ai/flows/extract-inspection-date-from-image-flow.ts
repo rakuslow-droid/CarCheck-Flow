@@ -1,8 +1,9 @@
-// src/ai/flows/extract-inspection-date-from-image-flow.ts
 "use server";
 
 import { ai } from "@/ai/genkit";
 import { z } from "genkit";
+// モデルオブジェクトを直接インポート
+import { gemini15Flash } from "@genkit-ai/googleai";
 
 const ExtractInspectionDateFromImageOutputSchema = z.object({
   inspectionDate: z.string(),
@@ -13,11 +14,11 @@ const ExtractInspectionDateFromImageOutputSchema = z.object({
 export async function extractInspectionDateFromImage(input: {
   imageDataUri: string;
 }) {
-  console.log("DEBUG: AI extraction started with v1 endpoint...");
+  console.log("DEBUG: AI extraction started with correct model object...");
 
   const { output } = await ai.generate({
-    // モデル名からプレフィックスを外し、プラグインに解決させます
-    model: "googleai/gemini-1.5-flash",
+    // 文字列 "googleai/gemini-1.5-flash" の代わりにオブジェクトを渡します
+    model: gemini15Flash,
     prompt: [
       {
         text: "この画像から車検の「有効期間の満了する日」を抜き出し、YYYY-MM-DD形式のJSONで回答してください。",
