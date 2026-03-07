@@ -13,14 +13,12 @@ interface FirebaseProviderProps {
   auth: Auth | null;
 }
 
-// Internal state for user authentication
 interface UserAuthState {
   user: User | null;
   isUserLoading: boolean;
   userError: Error | null;
 }
 
-// Combined state for the Firebase context
 export interface FirebaseContextState {
   areServicesAvailable: boolean;
   firebaseApp: FirebaseApp | null;
@@ -31,11 +29,10 @@ export interface FirebaseContextState {
   userError: Error | null;
 }
 
-// Return type for useFirebase()
 export interface FirebaseServicesAndUser {
-  firebaseApp: FirebaseApp;
-  firestore: Firestore;
-  auth: Auth;
+  firebaseApp: FirebaseApp | null;
+  firestore: Firestore | null;
+  auth: Auth | null;
   user: User | null;
   isUserLoading: boolean;
   userError: Error | null;
@@ -49,9 +46,6 @@ export interface UserHookResult {
 
 export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
 
-/**
- * FirebaseProvider manages and provides Firebase services and user authentication state.
- */
 export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   children,
   firebaseApp,
@@ -60,12 +54,11 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 }) => {
   const [userAuthState, setUserAuthState] = useState<UserAuthState>({
     user: null,
-    isUserLoading: !!auth, // Only load if auth is actually provided
+    isUserLoading: !!auth,
     userError: null,
   });
 
   useEffect(() => {
-    // GUARD: Ensure auth is a valid object and onAuthStateChanged is a function
     if (!auth || typeof onAuthStateChanged !== 'function') {
       setUserAuthState({ 
         user: null, 
@@ -116,10 +109,6 @@ export const useFirebase = (): FirebaseServicesAndUser => {
     throw new Error('useFirebase must be used within a FirebaseProvider.');
   }
 
-  if (!context.areServicesAvailable || !context.firebaseApp || !context.firestore || !context.auth) {
-    throw new Error('Firebase core services not available. Check your environment variables and FirebaseProvider setup.');
-  }
-
   return {
     firebaseApp: context.firebaseApp,
     firestore: context.firestore,
@@ -130,28 +119,27 @@ export const useFirebase = (): FirebaseServicesAndUser => {
   };
 };
 
-export const useAuth = (): Auth => {
+export const useAuth = (): Auth | null => {
   const { auth } = useFirebase();
   return auth;
 };
 
-export const useFirestore = (): Firestore => {
+export const useFirestore = (): Firestore | null => {
   const { firestore } = useFirebase();
   return firestore;
 };
 
-export const useFirebaseApp = (): FirebaseApp => {
+export const useFirebaseApp = (): FirebaseApp | null => {
   const { firebaseApp } = useFirebase();
   return firebaseApp;
 };
 
-type MemoFirebase <T> = T & {__memo?: boolean};
-
-export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T | (MemoFirebase<T>) {
-  const memoized = useMemo(factory, deps);
-  if(typeof memoized !== 'object' || memoized === null) return memoized;
-  (memoized as MemoFirebase<T>).__memo = true;
-  return memoized;
+/**
+ * useMemoFirebase provides a memoized Firestore object (Ref or Query).
+ * Removed mutation check (__memo) to prevent Internal Server Errors with frozen objects.
+ */
+export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T {
+  return useMemo(factory, deps);
 }
 
 export const useUser = (): UserHookResult => {

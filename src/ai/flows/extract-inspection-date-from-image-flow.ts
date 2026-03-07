@@ -33,6 +33,9 @@ const prompt = ai.definePrompt({
   name: "extractInspectionDatePrompt",
   input: { schema: ExtractInspectionDateFromImageInputSchema },
   output: { schema: ExtractInspectionDateFromImageOutputSchema },
+  config: {
+    model: "googleai/gemini-3-flash-preview",
+  },
   prompt: `You are an expert at reading Japanese vehicle documents (車検証 and 車検ステッカー).
 Extract the "有効期間の満了する日" (expiration date) from the provided image.
 

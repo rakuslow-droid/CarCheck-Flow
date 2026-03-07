@@ -1,9 +1,7 @@
 "use client"
 
-export const dynamic = 'force-dynamic';
-
 import { useState, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -36,12 +34,11 @@ import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebas
 import { collection, query, where, limit } from 'firebase/firestore';
 
 export default function VehiclesPage() {
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const [search, setSearch] = useState('');
 
-  // 1. Find the merchant(s) owned by this user first.
-  // This avoids using collectionGroup which requires manual composite indexes.
+  // 1. Find the merchant(s) owned by this user
   const merchantsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
@@ -64,16 +61,17 @@ export default function VehiclesPage() {
 
   const filteredVehicles = useMemo(() => {
     if (!vehicles) return [];
+    const searchLower = search.toLowerCase();
     return vehicles.filter(v => 
-      v.plateNumber?.toLowerCase().includes(search.toLowerCase()) ||
-      v.modelName?.toLowerCase().includes(search.toLowerCase())
+      (v.plateNumber || '').toLowerCase().includes(searchLower) ||
+      (v.modelName || '').toLowerCase().includes(searchLower)
     );
   }, [vehicles, search]);
 
-  const isLoading = isLoadingMerchant || isLoadingVehicles;
+  const isLoading = isUserLoading || isLoadingMerchant || isLoadingVehicles;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-headline font-bold">Vehicles & Reminders</h1>
@@ -125,11 +123,11 @@ export default function VehiclesPage() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={5} className="text-center py-8">Loading vehicles...</TableCell></TableRow>
-                ) : !activeMerchant ? (
-                  <TableRow><TableCell colSpan={5} className="text-center py-8">No shop profile found. Please set up your shop in Settings.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading vehicle data...</TableCell></TableRow>
+                ) : !activeMerchant && !isLoadingMerchant ? (
+                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No shop profile found. Please set up your shop in Settings.</TableCell></TableRow>
                 ) : filteredVehicles.length === 0 ? (
-                  <TableRow><TableCell colSpan={5} className="text-center py-8">No vehicles found. Ask customers to scan your QR code!</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No vehicles found matching your search.</TableCell></TableRow>
                 ) : filteredVehicles.map((v) => (
                   <TableRow key={v.id} className="group hover:bg-muted/30 transition-colors">
                     <TableCell>
@@ -137,7 +135,7 @@ export default function VehiclesPage() {
                         <div className="w-8 h-8 rounded-lg bg-primary/5 flex items-center justify-center text-primary">
                           <Car size={16} />
                         </div>
-                        <span className="font-medium">{v.modelName || 'Unknown'}</span>
+                        <span className="font-medium">{v.modelName || 'Unknown Model'}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -146,7 +144,7 @@ export default function VehiclesPage() {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Calendar size={14} className="text-muted-foreground" />
-                        <span>{v.inspectionDate}</span>
+                        <span>{v.inspectionDate || 'Not set'}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -175,10 +173,10 @@ export default function VehiclesPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem className="gap-2">
-                            View Document
+                            View Details
                           </DropdownMenuItem>
                           <DropdownMenuItem className="text-destructive gap-2">
-                            Remove Vehicle
+                            Delete Record
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
