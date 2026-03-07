@@ -1,15 +1,17 @@
 // src/ai/genkit.ts
 import { genkit } from "genkit";
-import { googleAI } from "@genkit-ai/googleai";
+import { googleAI } from "@genkit-ai/google-genai";
 
+/**
+ * Global Genkit instance configuration.
+ * Uses a placeholder for GEMINI_API_KEY if missing to prevent 
+ * module-level crashes during build/pre-rendering phases.
+ */
 export const ai = genkit({
   plugins: [
     googleAI({
-      apiKey: process.env.GOOGLE_GENAI_API_KEY,
+      apiKey: process.env.GEMINI_API_KEY || "dummy-key-for-build-stability",
     }),
   ],
-  // 修正：ここも最新モデルに合わせておきます
-  model: "googleai/gemini-3-flash-preview",
+  model: "googleai/gemini-1.5-flash",
 });
-
-console.log("Checking API Key setup... Key found!");

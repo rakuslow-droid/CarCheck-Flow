@@ -1,42 +1,60 @@
 "use server";
+/**
+ * @fileOverview AI Flow for extracting vehicle inspection dates from Japanese documents.
+ * 
+ * - extractInspectionDateFromImage - Wrapper function for the AI flow.
+ */
 
 import { ai } from "@/ai/genkit";
 import { z } from "genkit";
-// モデルオブジェクトを直接インポート
-import { gemini15Flash } from "@genkit-ai/googleai";
 
-const ExtractInspectionDateFromImageOutputSchema = z.object({
-  inspectionDate: z.string(),
-  isCertificate: z.boolean(),
-  extractedText: z.string().optional(),
+const ExtractInspectionDateFromImageInputSchema = z.object({
+  imageDataUri: z.string().describe("Base64 encoded image data URI of the vehicle inspection document."),
 });
 
+const ExtractInspectionDateFromImageOutputSchema = z.object({
+  inspectionDate: z.string().describe("The extracted inspection expiration date in YYYY-MM-DD format."),
+  isCertificate: z.boolean().describe("Whether the document was identified as a valid vehicle inspection certificate or sticker."),
+  extractedText: z.string().optional().describe("Supporting text found in the image."),
+});
+
+export type ExtractInspectionDateFromImageOutput = z.infer<typeof ExtractInspectionDateFromImageOutputSchema>;
+
+/**
+ * Wrapper function for the extractInspectionDateFlow.
+ */
 export async function extractInspectionDateFromImage(input: {
   imageDataUri: string;
-}) {
-  console.log("DEBUG: AI extraction started with correct model object...");
-
-  const { output } = await ai.generate({
-    // 文字列 "googleai/gemini-1.5-flash" の代わりにオブジェクトを渡します
-    model: "googleai/gemini-3-flash-preview",
-    prompt: [
-      {
-        text: "この画像から車検の「有効期間の満了する日」を抜き出し、YYYY-MM-DD形式のJSONで回答してください。",
-      },
-      {
-        media: {
-          url: input.imageDataUri,
-          contentType: "image/jpeg",
-        },
-      },
-    ],
-    output: { schema: ExtractInspectionDateFromImageOutputSchema },
-  });
-
-  if (!output) {
-    throw new Error("AI extraction failed to produce output");
-  }
-
-  console.log("DEBUG: AI Extraction Success:", output.inspectionDate);
-  return output;
+}): Promise<ExtractInspectionDateFromImageOutput> {
+  return extractInspectionDateFlow(input);
 }
+
+const prompt = ai.definePrompt({
+  name: "extractInspectionDatePrompt",
+  input: { schema: ExtractInspectionDateFromImageInputSchema },
+  output: { schema: ExtractInspectionDateFromImageOutputSchema },
+  prompt: `You are an expert at reading Japanese vehicle documents (車検証 and 車検ステッカー).
+Extract the "有効期間の満了する日" (expiration date) from the provided image.
+
+Instructions:
+1. Return the date in YYYY-MM-DD format.
+2. Determine if the image is indeed a vehicle inspection related document.
+3. Provide any relevant text snippets for verification.
+
+Image: {{media url=imageDataUri}}`,
+});
+
+const extractInspectionDateFlow = ai.defineFlow(
+  {
+    name: "extractInspectionDateFlow",
+    inputSchema: ExtractInspectionDateFromImageInputSchema,
+    outputSchema: ExtractInspectionDateFromImageOutputSchema,
+  },
+  async (input) => {
+    const { output } = await prompt(input);
+    if (!output) {
+      throw new Error("AI failed to extract data from the image.");
+    }
+    return output;
+  }
+);
