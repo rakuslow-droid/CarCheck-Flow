@@ -33,24 +33,34 @@ import {
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { collectionGroup, query, where } from 'firebase/firestore';
+import { collection, query, where, limit } from 'firebase/firestore';
 
 export default function VehiclesPage() {
   const { user } = useUser();
   const firestore = useFirestore();
   const [search, setSearch] = useState('');
 
-  // Use collectionGroup to find all 'vehicles' subcollections across all merchants
-  // that belong to this owner. This matches the security rules perfectly.
-  const vehiclesQuery = useMemoFirebase(() => {
+  // 1. Find the merchant(s) owned by this user first.
+  // This avoids using collectionGroup which requires manual composite indexes.
+  const merchantsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
-      collectionGroup(firestore, 'vehicles'),
-      where('merchantOwnerId', '==', user.uid)
+      collection(firestore, 'merchants'),
+      where('ownerId', '==', user.uid),
+      limit(1)
     );
   }, [firestore, user]);
 
-  const { data: vehicles, isLoading } = useCollection(vehiclesQuery);
+  const { data: merchants, isLoading: isLoadingMerchant } = useCollection(merchantsQuery);
+  const activeMerchant = merchants?.[0];
+
+  // 2. Query vehicles for the specific merchant
+  const vehiclesQuery = useMemoFirebase(() => {
+    if (!firestore || !activeMerchant) return null;
+    return collection(firestore, 'merchants', activeMerchant.id, 'vehicles');
+  }, [firestore, activeMerchant]);
+
+  const { data: vehicles, isLoading: isLoadingVehicles } = useCollection(vehiclesQuery);
 
   const filteredVehicles = useMemo(() => {
     if (!vehicles) return [];
@@ -59,6 +69,8 @@ export default function VehiclesPage() {
       v.modelName?.toLowerCase().includes(search.toLowerCase())
     );
   }, [vehicles, search]);
+
+  const isLoading = isLoadingMerchant || isLoadingVehicles;
 
   return (
     <div className="space-y-6">
@@ -114,6 +126,8 @@ export default function VehiclesPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow><TableCell colSpan={5} className="text-center py-8">Loading vehicles...</TableCell></TableRow>
+                ) : !activeMerchant ? (
+                  <TableRow><TableCell colSpan={5} className="text-center py-8">No shop profile found. Please set up your shop in Settings.</TableCell></TableRow>
                 ) : filteredVehicles.length === 0 ? (
                   <TableRow><TableCell colSpan={5} className="text-center py-8">No vehicles found. Ask customers to scan your QR code!</TableCell></TableRow>
                 ) : filteredVehicles.map((v) => (

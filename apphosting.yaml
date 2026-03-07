@@ -1,5 +1,5 @@
 kind: "AppHostingYaml"
-schemaVersion: 1
+schemaVersion: "v1"
 
 runConfig:
   maxInstances: 1
@@ -25,19 +25,15 @@ secrets:
     secret: NEXT_PUBLIC_FIREBASE_API_KEY
     availability:
       - RUNTIME
-      - BUILD
   - variable: LINE_CHANNEL_ACCESS_TOKEN
     secret: LINE_CHANNEL_ACCESS_TOKEN
     availability:
       - RUNTIME
-      - BUILD
   - variable: LINE_CHANNEL_SECRET
     secret: LINE_CHANNEL_SECRET
     availability:
       - RUNTIME
-      - BUILD
-  - variable: GEMINI_API_KEY
-    secret: GEMINI_API_KEY
+  - variable: GOOGLE_GENAI_API_KEY
+    secret: GOOGLE_GENAI_API_KEY
     availability:
       - RUNTIME
-      - BUILD

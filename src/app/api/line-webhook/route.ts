@@ -75,6 +75,12 @@ export async function POST(req: NextRequest) {
     const rawBody = await req.text();
     const signature = req.headers.get("x-line-signature");
 
+    // Runtime check for environment variables
+    if (!CHANNEL_SECRET || !CHANNEL_ACCESS_TOKEN) {
+      console.error("Critical: LINE environment variables are missing.");
+      return NextResponse.json({ error: "Configuration Error" }, { status: 500 });
+    }
+
     if (!verifySignature(rawBody, signature, CHANNEL_SECRET)) {
       console.warn("Invalid LINE Signature received");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -109,7 +115,6 @@ export async function POST(req: NextRequest) {
               const vehiclesRef = collection(firestore, "merchants", merchantDoc.id, "vehicles");
 
               await addDoc(vehiclesRef, {
-                id: `v_${Date.now()}`,
                 merchantId: merchantDoc.id,
                 merchantOwnerId: merchantData.ownerId,
                 lineUserId,
@@ -123,6 +128,9 @@ export async function POST(req: NextRequest) {
                 `車検日（${aiResult.inspectionDate}）の登録が完了しました。リマインドをお送りします！`,
                 CHANNEL_ACCESS_TOKEN
               );
+            } else {
+              console.warn("No merchant profile found in database. Cannot associate vehicle.");
+              await replyToLine(replyToken, "店舗情報の登録が完了していないため、車両情報を登録できませんでした。", CHANNEL_ACCESS_TOKEN);
             }
           } else {
             await replyToLine(replyToken, "申し訳ありません。画像から車検日を読み取れませんでした。", CHANNEL_ACCESS_TOKEN);
