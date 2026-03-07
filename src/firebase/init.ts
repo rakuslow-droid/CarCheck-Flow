@@ -8,12 +8,14 @@ import { getFirestore, Firestore } from 'firebase/firestore';
  * Returns null for services if configuration is missing.
  */
 export function initializeFirebase() {
+  // Use existing app if already initialized to prevent double-initialization errors
   if (getApps().length > 0) {
-    return getSdks(getApp());
+    const app = getApp();
+    return getSdks(app);
   }
 
+  // Check if we have the minimum required config
   if (!isFirebaseConfigValid()) {
-    console.warn('Firebase initialization skipped: Missing environment variables.');
     return {
       firebaseApp: null,
       auth: null,
@@ -35,7 +37,7 @@ export function initializeFirebase() {
 }
 
 export function getSdks(firebaseApp: FirebaseApp) {
-  if (!firebaseApp || !firebaseApp.options) {
+  if (!firebaseApp) {
     return {
       firebaseApp: null,
       auth: null,
@@ -43,8 +45,6 @@ export function getSdks(firebaseApp: FirebaseApp) {
     };
   }
 
-  // We wrap these in try-catch to ensure that if one service fails (e.g. Auth), 
-  // the others can still be returned if available.
   let auth: Auth | null = null;
   let firestore: Firestore | null = null;
 

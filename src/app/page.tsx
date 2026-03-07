@@ -1,146 +1,21 @@
-import Link from 'next/link';
-import Image from 'next/image';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Car, ShieldCheck, Bell, MessageSquare, ChevronRight } from 'lucide-react';
+export const dynamic = 'force-dynamic';
 
 export default function LandingPage() {
   return (
-    <div className="flex flex-col min-h-screen bg-background">
-      {/* Navigation */}
-      <nav className="flex items-center justify-between px-6 py-4 border-b bg-white/50 backdrop-blur-md sticky top-0 z-50">
-        <div className="flex items-center gap-2">
-          <div className="bg-primary p-2 rounded-lg text-white">
-            <Car className="w-6 h-6" />
-          </div>
-          <span className="text-xl font-headline font-bold tracking-tight text-primary">CarCheck Flow</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link href="/login">
-            <Button variant="ghost" className="font-headline font-medium">Merchant Login</Button>
-          </Link>
-          <Link href="/register">
-            <Button className="font-headline font-bold bg-primary hover:bg-primary/90">Get Started</Button>
-          </Link>
-        </div>
-      </nav>
-
-      <main className="flex-1">
-        {/* Hero Section */}
-        <section className="relative px-6 py-20 lg:py-32 overflow-hidden">
-          <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
-            <div className="space-y-8 animate-in fade-in slide-in-from-left-4 duration-700">
-              <Badge variant="secondary" className="px-4 py-1 text-sm font-headline bg-accent/10 text-primary border-accent/20">
-                Next-Gen Automotive Management
-              </Badge>
-              <h1 className="text-5xl lg:text-7xl font-headline font-bold leading-tight tracking-tight text-foreground">
-                Automated Inspection <br />
-                <span className="text-primary italic">Reminders</span> via LINE
-              </h1>
-              <p className="text-xl text-muted-foreground max-w-lg leading-relaxed">
-                Connect your shop directly to customers through Japan's favorite messaging app. 
-                Use AI to extract vehicle data and never miss an inspection renewal again.
-              </p>
-              <div className="flex flex-wrap gap-4">
-                <Link href="/register">
-                  <Button size="lg" className="h-14 px-8 text-lg font-headline font-bold bg-primary shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all">
-                    Register Your Shop
-                    <ChevronRight className="ml-2 w-5 h-5" />
-                  </Button>
-                </Link>
-                <Link href="/docs">
-                  <Button size="lg" variant="outline" className="h-14 px-8 text-lg font-headline font-medium border-2">
-                    How it Works
-                  </Button>
-                </Link>
-              </div>
-            </div>
-            
-            <div className="relative animate-in fade-in slide-in-from-right-4 duration-700 delay-100">
-              <div className="absolute -inset-1 bg-gradient-to-tr from-accent to-primary rounded-2xl blur opacity-20"></div>
-              <div className="relative bg-white p-2 rounded-2xl shadow-2xl border">
-                <Image 
-                  src="https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?q=80&w=1200&h=800&auto=format&fit=crop"
-                  alt="Automotive Shop"
-                  width={1200}
-                  height={800}
-                  className="rounded-xl object-cover"
-                  data-ai-hint="auto garage"
-                />
-              </div>
-              
-              {/* Floating UI Elements */}
-              <div className="absolute -bottom-6 -left-6 bg-white p-4 rounded-xl shadow-xl border animate-bounce-subtle">
-                <div className="flex items-center gap-3">
-                  <div className="bg-green-100 p-2 rounded-full text-green-600">
-                    <ShieldCheck className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold">Extraction Successful</p>
-                    <p className="text-xs text-muted-foreground">Exp: 2026-05-12</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Features Section */}
-        <section className="bg-white py-24 border-y">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
-              <h2 className="text-3xl lg:text-4xl font-headline font-bold">Built for Reliability & Trust</h2>
-              <p className="text-lg text-muted-foreground">Our platform combines enterprise-grade automation with the simplicity of a chat message.</p>
-            </div>
-            
-            <div className="grid md:grid-cols-3 gap-8">
-              {[
-                {
-                  icon: <MessageSquare className="w-6 h-6" />,
-                  title: "LINE Integration",
-                  desc: "Send personalized reminders and receive inspection docs directly from customers via LINE."
-                },
-                {
-                  icon: <ShieldCheck className="w-6 h-6" />,
-                  title: "AI Extraction",
-                  desc: "Powered by Gemini AI to accurately read vehicle inspection certificates and update dates automatically."
-                },
-                {
-                  icon: <Bell className="w-6 h-6" />,
-                  title: "Smart Reminders",
-                  desc: "Multi-stage reminder schedules ensure your customers are always informed before their inspection expires."
-                }
-              ].map((feature, idx) => (
-                <Card key={idx} className="border-none shadow-none hover:bg-background/50 transition-colors p-4">
-                  <CardContent className="pt-6 space-y-4">
-                    <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
-                      {feature.icon}
-                    </div>
-                    <h3 className="text-xl font-headline font-bold">{feature.title}</h3>
-                    <p className="text-muted-foreground leading-relaxed">{feature.desc}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </section>
-      </main>
-
-      <footer className="bg-white border-t py-12 px-6">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-2">
-            <Car className="w-5 h-5 text-primary" />
-            <span className="font-headline font-bold text-primary">CarCheck Flow</span>
-          </div>
-          <p className="text-sm text-muted-foreground">© 2024 CarCheck Flow Inc. All rights reserved.</p>
-          <div className="flex gap-6 text-sm font-medium text-muted-foreground">
-            <Link href="#" className="hover:text-primary transition-colors">Privacy</Link>
-            <Link href="#" className="hover:text-primary transition-colors">Terms</Link>
-            <Link href="#" className="hover:text-primary transition-colors">Contact</Link>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-6">
+      <div className="text-center space-y-4">
+        <div className="bg-primary/10 p-4 rounded-full inline-block mb-4">
+          <div className="bg-primary p-3 rounded-xl text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
           </div>
         </div>
-      </footer>
+        <h1 className="text-4xl font-headline font-bold text-primary">CarCheck Flow</h1>
+        <p className="text-xl text-muted-foreground">Server Connectivity Test: <span className="text-green-600 font-bold">Successful</span></p>
+        <div className="mt-8 flex gap-4 justify-center">
+          <a href="/login" className="px-6 py-3 bg-primary text-white rounded-lg font-bold hover:bg-primary/90 transition-colors">Merchant Login</a>
+          <a href="/dashboard" className="px-6 py-3 border border-primary text-primary rounded-lg font-bold hover:bg-primary/5 transition-colors">Go to Dashboard</a>
+        </div>
+      </div>
     </div>
   );
 }
