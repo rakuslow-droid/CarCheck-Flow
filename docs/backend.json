@@ -8,8 +8,13 @@
         "id": { "type": "string" },
         "ownerId": { "type": "string", "description": "Firebase Auth UID of the shop manager." },
         "displayName": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "inviteCode": { "type": "string" },
+        "adminLineUserId": { "type": "string", "description": "LINE User ID of the shop manager for administrative commands." },
         "lineAccessToken": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "ownerId", "displayName", "createdAt"]
     },

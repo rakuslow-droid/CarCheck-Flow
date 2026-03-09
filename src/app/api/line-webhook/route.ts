@@ -9,6 +9,7 @@ import {
   getDocs,
   where,
   limit,
+  getCountFromServer,
 } from "firebase/firestore";
 import { extractInspectionDateFromImage } from "@/ai/flows/extract-inspection-date-from-image-flow";
 import crypto from "crypto";
@@ -97,17 +98,45 @@ export async function POST(req: NextRequest) {
     }
 
     for (const event of events) {
+      const lineUserId = event.source.userId;
+
+      // Handle Text Messages (Management Commands)
+      if (event.type === "message" && event.message.type === "text") {
+        const text = event.message.text;
+
+        if (text === "登録状況" || text === "レポート") {
+          // Check if sender is a registered admin for any merchant
+          const merchantsRef = collection(firestore, "merchants");
+          const adminQuery = query(merchantsRef, where("adminLineUserId", "==", lineUserId), limit(1));
+          const adminSnap = await getDocs(adminQuery);
+
+          if (!adminSnap.empty) {
+            const merchantDoc = adminSnap.docs[0];
+            const vehiclesRef = collection(firestore, "merchants", merchantDoc.id, "vehicles");
+            const countSnap = await getCountFromServer(vehiclesRef);
+            const count = countSnap.data().count;
+
+            const replyMsg = `【管理者レポート】\n現在の総登録車両数は ${count} 台です。\n詳細はダッシュボードをご確認ください。`;
+            await replyToLine(event.replyToken, replyMsg, CHANNEL_ACCESS_TOKEN);
+          } else {
+            // Not an admin, or ID not linked. Provide user ID for linking.
+            const helpMsg = `管理コマンドを検知しました。\nこのLINEアカウントはまだ管理者として登録されていません。\n\nあなたのLINE User ID:\n${lineUserId}\n\nこのIDを管理画面の「設定 > 管理者連携」に入力してください。`;
+            await replyToLine(event.replyToken, helpMsg, CHANNEL_ACCESS_TOKEN);
+          }
+        }
+      }
+
+      // Handle Image Messages (Vehicle Inspection OCR)
       if (event.type === "message" && event.message.type === "image") {
         const { replyToken } = event;
-        const lineUserId = event.source.userId;
 
         try {
           const imageDataUri = await getLineImage(event.message.id, CHANNEL_ACCESS_TOKEN);
           const aiResult = await extractInspectionDateFromImage({ imageDataUri });
 
           if (aiResult.inspectionDate) {
-            // Find the merchant. In a real app, we might check a ref parameter from the follow event.
-            // For this prototype, we'll fetch the first available merchant or one matching a logic.
+            // Find the merchant linked to this follow/interaction
+            // For prototype: we check if there's a merchant this user is associated with or fallback to first
             const merchantsRef = collection(firestore, "merchants");
             const merchantSnap = await getDocs(query(merchantsRef, limit(1)));
 

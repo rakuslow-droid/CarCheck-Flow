@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef } from 'react';
@@ -10,7 +9,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { MessageSquare, Shield, Bell, User, ExternalLink, RefreshCw, QrCode, Copy, Save, Loader2, Download } from 'lucide-react';
+import { 
+  MessageSquare, 
+  Shield, 
+  Bell, 
+  User, 
+  ExternalLink, 
+  RefreshCw, 
+  QrCode, 
+  Copy, 
+  Save, 
+  Loader2, 
+  Download,
+  Key
+} from 'lucide-react';
 import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { collection, query, where, limit, doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -28,6 +40,7 @@ export default function SettingsPage() {
     name: '',
     email: '',
     inviteCode: '',
+    adminLineUserId: '',
   });
 
   const merchantQuery = useMemoFirebase(() => {
@@ -48,6 +61,7 @@ export default function SettingsPage() {
         name: merchant.name || merchant.displayName || '',
         email: merchant.email || '',
         inviteCode: merchant.inviteCode || '',
+        adminLineUserId: merchant.adminLineUserId || '',
       });
     }
   }, [merchant]);
@@ -151,7 +165,7 @@ export default function SettingsPage() {
               </CardTitle>
               <CardDescription>Update your shop's public identity and contact information.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="shop-name">Shop Name</Label>
@@ -173,6 +187,31 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Key size={18} className="text-primary" />
+                  <h3 className="font-headline font-bold">Admin LINE Integration</h3>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="admin-line-id">Admin LINE User ID</Label>
+                  <Input 
+                    id="admin-line-id" 
+                    value={formData.adminLineUserId} 
+                    onChange={(e) => setFormData({...formData, adminLineUserId: e.target.value})}
+                    placeholder="U1234567890abcdef..." 
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Entering your LINE User ID enables administrative commands (like "登録状況") directly in the LINE chat.
+                    To find your ID, send the message "登録状況" to the bot.
+                  </p>
+                </div>
+              </div>
+
+              <Separator />
+
               <div className="space-y-2">
                 <Label htmlFor="invite-code">Shop Invite Code (Used for QR Tracking)</Label>
                 <div className="flex gap-2">
