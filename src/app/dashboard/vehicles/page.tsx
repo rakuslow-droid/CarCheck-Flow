@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo } from 'react';
@@ -5,6 +6,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { 
   Table, 
   TableHeader, 
@@ -25,8 +27,9 @@ import {
   Upload,
   Edit,
   Trash2,
-  Loader2
+  Lock
 } from 'lucide-react';
+import Link from 'next/link';
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -62,7 +65,6 @@ export default function VehiclesPage() {
   const { toast } = useToast();
   const [search, setSearch] = useState('');
   
-  // States for Edit Modal
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<any>(null);
   const [editFormData, setEditFormData] = useState({
@@ -72,12 +74,10 @@ export default function VehiclesPage() {
     status: 'Upcoming'
   });
 
-  // States for Delete Alert
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [vehicleToDelete, setVehicleToDelete] = useState<any>(null);
 
-  // 1. Find the merchant owned by this user
-  const merchantsQuery = useMemoFirebase(() => {
+  const merchantQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
       collection(firestore, 'merchants'),
@@ -86,10 +86,9 @@ export default function VehiclesPage() {
     );
   }, [firestore, user]);
 
-  const { data: merchants, isLoading: isLoadingMerchant } = useCollection(merchantsQuery);
+  const { data: merchants, isLoading: isLoadingMerchant } = useCollection(merchantQuery);
   const activeMerchant = merchants?.[0];
 
-  // 2. Query vehicles for the specific merchant
   const vehiclesQuery = useMemoFirebase(() => {
     if (!firestore || !activeMerchant) return null;
     return collection(firestore, 'merchants', activeMerchant.id, 'vehicles');
@@ -106,6 +105,8 @@ export default function VehiclesPage() {
     );
   }, [vehicles, search]);
 
+  const isSubscribed = activeMerchant?.subscriptionStatus === 'active';
+
   const handleEditClick = (vehicle: any) => {
     setEditingVehicle(vehicle);
     setEditFormData({
@@ -119,15 +120,10 @@ export default function VehiclesPage() {
 
   const handleUpdateVehicle = () => {
     if (!firestore || !activeMerchant || !editingVehicle) return;
-
     const vehicleRef = doc(firestore, 'merchants', activeMerchant.id, 'vehicles', editingVehicle.id);
     updateDocumentNonBlocking(vehicleRef, editFormData);
-    
     setIsEditDialogOpen(false);
-    toast({
-      title: "Vehicle Updated",
-      description: "The vehicle record has been successfully modified.",
-    });
+    toast({ title: "Vehicle Updated" });
   };
 
   const handleDeleteClick = (vehicle: any) => {
@@ -137,15 +133,10 @@ export default function VehiclesPage() {
 
   const handleConfirmDelete = () => {
     if (!firestore || !activeMerchant || !vehicleToDelete) return;
-
     const vehicleRef = doc(firestore, 'merchants', activeMerchant.id, 'vehicles', vehicleToDelete.id);
     deleteDocumentNonBlocking(vehicleRef);
-    
     setIsDeleteDialogOpen(false);
-    toast({
-      title: "Vehicle Deleted",
-      description: "The vehicle record has been removed from your fleet.",
-    });
+    toast({ title: "Vehicle Deleted" });
   };
 
   const isLoading = isUserLoading || isLoadingMerchant || isLoadingVehicles;
@@ -158,16 +149,29 @@ export default function VehiclesPage() {
           <p className="text-muted-foreground">Manage your customer's vehicle database and inspection schedules.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button variant="outline" disabled={!isSubscribed}>
             <Upload className="mr-2 h-4 w-4" />
             Manual Upload
           </Button>
-          <Button className="bg-primary">
+          <Button className="bg-primary" disabled={!isSubscribed}>
             <Plus className="mr-2 h-4 w-4" />
             Add Vehicle
           </Button>
         </div>
       </div>
+
+      {!isSubscribed && !isLoading && (
+        <Alert variant="destructive" className="bg-destructive/10 border-destructive/20">
+          <Lock className="h-4 w-4" />
+          <AlertTitle className="font-bold">Subscription Required</AlertTitle>
+          <AlertDescription className="flex items-center justify-between">
+            <span>You need an active subscription to add new vehicles or use AI extraction.</span>
+            <Button size="sm" variant="destructive" asChild>
+              <Link href="/dashboard/billing">Upgrade Now</Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card className="border-none shadow-sm">
         <CardHeader className="pb-4">
@@ -204,8 +208,6 @@ export default function VehiclesPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading vehicle data...</TableCell></TableRow>
-                ) : !activeMerchant && !isLoadingMerchant ? (
-                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No shop profile found. Please set up your shop in Settings.</TableCell></TableRow>
                 ) : filteredVehicles.length === 0 ? (
                   <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No vehicles found matching your search.</TableCell></TableRow>
                 ) : filteredVehicles.map((v) => (
@@ -269,40 +271,23 @@ export default function VehiclesPage() {
         </CardContent>
       </Card>
 
-      {/* Edit Vehicle Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle className="font-headline">Edit Vehicle Info</DialogTitle>
-            <DialogDescription>
-              Update the details for this vehicle. Changes are saved immediately to your database.
-            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="model">Model Name</Label>
-              <Input 
-                id="model" 
-                value={editFormData.modelName} 
-                onChange={(e) => setEditFormData({...editFormData, modelName: e.target.value})} 
-              />
+              <Input id="model" value={editFormData.modelName} onChange={(e) => setEditFormData({...editFormData, modelName: e.target.value})} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="plate">Plate Number</Label>
-              <Input 
-                id="plate" 
-                value={editFormData.plateNumber} 
-                onChange={(e) => setEditFormData({...editFormData, plateNumber: e.target.value})} 
-              />
+              <Input id="plate" value={editFormData.plateNumber} onChange={(e) => setEditFormData({...editFormData, plateNumber: e.target.value})} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="date">Inspection Expiration Date</Label>
-              <Input 
-                id="date" 
-                type="date"
-                value={editFormData.inspectionDate} 
-                onChange={(e) => setEditFormData({...editFormData, inspectionDate: e.target.value})} 
-              />
+              <Input id="date" type="date" value={editFormData.inspectionDate} onChange={(e) => setEditFormData({...editFormData, inspectionDate: e.target.value})} />
             </div>
           </div>
           <DialogFooter>
@@ -312,21 +297,15 @@ export default function VehiclesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Alert */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="font-headline">Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the vehicle record for 
-              <span className="font-bold"> {vehicleToDelete?.modelName || 'this vehicle'}</span> and remove all associated reminder schedules.
-            </AlertDialogDescription>
+            <AlertDialogDescription>This will permanently delete the vehicle record.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleConfirmDelete}>
-              Delete Vehicle
-            </AlertDialogAction>
+            <AlertDialogAction className="bg-destructive" onClick={handleConfirmDelete}>Delete Vehicle</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

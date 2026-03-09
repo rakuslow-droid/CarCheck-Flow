@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Merchant": {
@@ -13,6 +14,8 @@
         "inviteCode": { "type": "string" },
         "adminLineUserId": { "type": "string", "description": "LINE User ID of the shop manager for administrative commands." },
         "lineAccessToken": { "type": "string" },
+        "stripeCustomerId": { "type": "string" },
+        "subscriptionStatus": { "type": "string", "enum": ["active", "past_due", "canceled", "none"] },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },

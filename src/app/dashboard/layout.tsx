@@ -1,3 +1,4 @@
+
 "use client"
 
 import Link from 'next/link';
@@ -24,7 +25,8 @@ import {
   LogOut, 
   Bell, 
   MessageCircle,
-  BarChart3
+  BarChart3,
+  CreditCard
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -55,6 +57,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { icon: <Calendar size={20} />, label: 'Reminders', href: '/dashboard/reminders' },
     { icon: <MessageCircle size={20} />, label: 'LINE Chat', href: '/dashboard/chat' },
     { icon: <BarChart3 size={20} />, label: 'Analytics', href: '/dashboard/analytics' },
+    { icon: <CreditCard size={20} />, label: 'Billing', href: '/dashboard/billing' },
   ];
 
   const shopName = merchant?.name || merchant?.displayName || 'My Shop';
@@ -126,6 +129,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
             
             <div className="flex items-center gap-4">
+              {merchant?.subscriptionStatus !== 'active' && (
+                <Link href="/dashboard/billing">
+                  <Badge variant="destructive" className="animate-pulse cursor-pointer">Upgrade to Pro</Badge>
+                </Link>
+              )}
               <Button variant="ghost" size="icon" className="relative">
                 <Bell size={20} />
                 <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-accent border-2 border-white">
