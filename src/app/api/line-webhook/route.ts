@@ -7,6 +7,7 @@ import {
   serverTimestamp,
   query,
   getDocs,
+  where,
   limit,
 } from "firebase/firestore";
 import { extractInspectionDateFromImage } from "@/ai/flows/extract-inspection-date-from-image-flow";
@@ -75,7 +76,6 @@ export async function POST(req: NextRequest) {
     const rawBody = await req.text();
     const signature = req.headers.get("x-line-signature");
 
-    // Runtime check for environment variables
     if (!CHANNEL_SECRET || !CHANNEL_ACCESS_TOKEN) {
       console.error("Critical: LINE environment variables are missing.");
       return NextResponse.json({ error: "Configuration Error" }, { status: 500 });
@@ -106,12 +106,16 @@ export async function POST(req: NextRequest) {
           const aiResult = await extractInspectionDateFromImage({ imageDataUri });
 
           if (aiResult.inspectionDate) {
+            // Find the merchant. In a real app, we might check a ref parameter from the follow event.
+            // For this prototype, we'll fetch the first available merchant or one matching a logic.
             const merchantsRef = collection(firestore, "merchants");
             const merchantSnap = await getDocs(query(merchantsRef, limit(1)));
 
             if (!merchantSnap.empty) {
               const merchantDoc = merchantSnap.docs[0];
               const merchantData = merchantDoc.data();
+              const shopName = merchantData.name || merchantData.displayName || "当ショップ";
+              
               const vehiclesRef = collection(firestore, "merchants", merchantDoc.id, "vehicles");
 
               await addDoc(vehiclesRef, {
@@ -123,21 +127,24 @@ export async function POST(req: NextRequest) {
                 createdAt: serverTimestamp(),
               });
 
-              await replyToLine(
-                replyToken,
-                `車検日（${aiResult.inspectionDate}）の登録が完了しました。リマインドをお送りします！`,
-                CHANNEL_ACCESS_TOKEN
-              );
+              const replyMessage = 
+                `【${shopName}】公式LINEへのご登録ありがとうございます！\n\n` +
+                `AI解析が完了しました！\n` +
+                `車検満了日は【${aiResult.inspectionDate}】で登録されました。\n\n` +
+                `時期が近づきましたら、こちらからリマインドをお送りいたします。どうぞ安心してお待ちください！\n\n` +
+                `▼登録情報の確認はこちら\n` +
+                `https://carcheck-flow.web.app/status/${lineUserId}`;
+
+              await replyToLine(replyToken, replyMessage, CHANNEL_ACCESS_TOKEN);
             } else {
-              console.warn("No merchant profile found in database. Cannot associate vehicle.");
               await replyToLine(replyToken, "店舗情報の登録が完了していないため、車両情報を登録できませんでした。", CHANNEL_ACCESS_TOKEN);
             }
           } else {
-            await replyToLine(replyToken, "申し訳ありません。画像から車検日を読み取れませんでした。", CHANNEL_ACCESS_TOKEN);
+            await replyToLine(replyToken, "申し訳ありません。画像から車検日を読み取ることができませんでした。もう一度、はっきりと写った写真を送っていただけますか？", CHANNEL_ACCESS_TOKEN);
           }
         } catch (error: any) {
           console.error("Error processing LINE image:", error);
-          await replyToLine(replyToken, "画像の解析中にエラーが発生しました。", CHANNEL_ACCESS_TOKEN);
+          await replyToLine(replyToken, "画像の解析中にエラーが発生しました。しばらくしてから再度お試しください。", CHANNEL_ACCESS_TOKEN);
         }
       }
     }
@@ -145,6 +152,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "ok" });
   } catch (error: any) {
     console.error("Webhook critical error:", error);
-    return NextResponse.json({ error: "Internal Server Error", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
