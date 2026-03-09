@@ -36,7 +36,7 @@ export default function LandingPage() {
             <Link href="/login">Merchant Login</Link>
           </Button>
           <Button asChild size="sm" className="bg-primary">
-            <Link href="/dashboard">Go to Dashboard</Link>
+            <Link href="/register">Register Shop</Link>
           </Button>
         </nav>
       </header>
@@ -58,7 +58,7 @@ export default function LandingPage() {
                 </p>
                 <div className="flex flex-col gap-4 sm:flex-row justify-center lg:justify-start">
                   <Button asChild size="lg" className="h-12 px-8 text-lg font-bold rounded-xl shadow-lg hover:shadow-primary/20 transition-all">
-                    <Link href="/dashboard">
+                    <Link href="/register">
                       Get Started <ArrowRight className="ml-2 h-5 w-5" />
                     </Link>
                   </Button>
@@ -195,15 +195,17 @@ export default function LandingPage() {
             <div className="space-y-4">
               <h4 className="font-bold text-sm uppercase tracking-wider text-slate-400">Platform</h4>
               <ul className="space-y-2">
-                <li><Link href="/dashboard" className="text-sm text-slate-600 hover:text-primary transition-colors">Merchant Portal</Link></li>
-                <li><Link href="/dashboard/analytics" className="text-sm text-slate-600 hover:text-primary transition-colors">Analytics</Link></li>
+                <li><Link href="/register" className="text-sm text-slate-600 hover:text-primary transition-colors">Register Shop</Link></li>
+                <li><Link href="/login" className="text-sm text-slate-600 hover:text-primary transition-colors">Merchant Login</Link></li>
+                <li><Link href="/dashboard/billing" className="text-sm text-slate-600 hover:text-primary transition-colors">Pricing</Link></li>
               </ul>
             </div>
             <div className="space-y-4">
-              <h4 className="font-bold text-sm uppercase tracking-wider text-slate-400">Support</h4>
+              <h4 className="font-bold text-sm uppercase tracking-wider text-slate-400">Legal</h4>
               <ul className="space-y-2">
-                <li><Link href="#" className="text-sm text-slate-600 hover:text-primary transition-colors">Documentation</Link></li>
-                <li><Link href="#" className="text-sm text-slate-600 hover:text-primary transition-colors">Contact</Link></li>
+                <li><Link href="/terms" className="text-sm text-slate-600 hover:text-primary transition-colors">Terms of Service</Link></li>
+                <li><Link href="/privacy" className="text-sm text-slate-600 hover:text-primary transition-colors">Privacy Policy</Link></li>
+                <li><Link href="/legal" className="text-sm text-slate-600 hover:text-primary transition-colors">Legal Notice (Tokutei)</Link></li>
               </ul>
             </div>
           </div>
@@ -211,8 +213,8 @@ export default function LandingPage() {
         <div className="container px-4 md:px-6 mx-auto mt-12 pt-8 border-t flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-slate-500">
           <p>© 2024 CarCheck Flow Inc. All rights reserved.</p>
           <div className="flex gap-6">
-            <Link href="#" className="hover:text-primary underline-offset-4 hover:underline">Privacy Policy</Link>
-            <Link href="#" className="hover:text-primary underline-offset-4 hover:underline">Terms of Service</Link>
+            <Link href="/privacy" className="hover:text-primary underline-offset-4 hover:underline">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-primary underline-offset-4 hover:underline">Terms of Service</Link>
           </div>
         </div>
       </footer>
