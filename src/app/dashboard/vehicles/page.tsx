@@ -22,7 +22,10 @@ import {
   MoreVertical,
   CheckCircle2,
   AlertTriangle,
-  Upload
+  Upload,
+  Edit,
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import { 
   DropdownMenu, 
@@ -30,15 +33,50 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
-import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, limit } from 'firebase/firestore';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter,
+  DialogDescription
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Label } from '@/components/ui/label';
+import { useFirestore, useUser, useCollection, useMemoFirebase, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
+import { collection, query, where, limit, doc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 export default function VehiclesPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
+  const { toast } = useToast();
   const [search, setSearch] = useState('');
+  
+  // States for Edit Modal
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<any>(null);
+  const [editFormData, setEditFormData] = useState({
+    modelName: '',
+    plateNumber: '',
+    inspectionDate: '',
+    status: 'Upcoming'
+  });
 
-  // 1. Find the merchant(s) owned by this user
+  // States for Delete Alert
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [vehicleToDelete, setVehicleToDelete] = useState<any>(null);
+
+  // 1. Find the merchant owned by this user
   const merchantsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
@@ -67,6 +105,48 @@ export default function VehiclesPage() {
       (v.modelName || '').toLowerCase().includes(searchLower)
     );
   }, [vehicles, search]);
+
+  const handleEditClick = (vehicle: any) => {
+    setEditingVehicle(vehicle);
+    setEditFormData({
+      modelName: vehicle.modelName || '',
+      plateNumber: vehicle.plateNumber || '',
+      inspectionDate: vehicle.inspectionDate || '',
+      status: vehicle.status || 'Upcoming'
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateVehicle = () => {
+    if (!firestore || !activeMerchant || !editingVehicle) return;
+
+    const vehicleRef = doc(firestore, 'merchants', activeMerchant.id, 'vehicles', editingVehicle.id);
+    updateDocumentNonBlocking(vehicleRef, editFormData);
+    
+    setIsEditDialogOpen(false);
+    toast({
+      title: "Vehicle Updated",
+      description: "The vehicle record has been successfully modified.",
+    });
+  };
+
+  const handleDeleteClick = (vehicle: any) => {
+    setVehicleToDelete(vehicle);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!firestore || !activeMerchant || !vehicleToDelete) return;
+
+    const vehicleRef = doc(firestore, 'merchants', activeMerchant.id, 'vehicles', vehicleToDelete.id);
+    deleteDocumentNonBlocking(vehicleRef);
+    
+    setIsDeleteDialogOpen(false);
+    toast({
+      title: "Vehicle Deleted",
+      description: "The vehicle record has been removed from your fleet.",
+    });
+  };
 
   const isLoading = isUserLoading || isLoadingMerchant || isLoadingVehicles;
 
@@ -172,11 +252,11 @@ export default function VehiclesPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem className="gap-2">
-                            View Details
+                          <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => handleEditClick(v)}>
+                            <Edit size={14} /> Edit Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive gap-2">
-                            Delete Record
+                          <DropdownMenuItem className="text-destructive gap-2 cursor-pointer" onClick={() => handleDeleteClick(v)}>
+                            <Trash2 size={14} /> Delete Record
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -188,6 +268,68 @@ export default function VehiclesPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Vehicle Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="font-headline">Edit Vehicle Info</DialogTitle>
+            <DialogDescription>
+              Update the details for this vehicle. Changes are saved immediately to your database.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="model">Model Name</Label>
+              <Input 
+                id="model" 
+                value={editFormData.modelName} 
+                onChange={(e) => setEditFormData({...editFormData, modelName: e.target.value})} 
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="plate">Plate Number</Label>
+              <Input 
+                id="plate" 
+                value={editFormData.plateNumber} 
+                onChange={(e) => setEditFormData({...editFormData, plateNumber: e.target.value})} 
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="date">Inspection Expiration Date</Label>
+              <Input 
+                id="date" 
+                type="date"
+                value={editFormData.inspectionDate} 
+                onChange={(e) => setEditFormData({...editFormData, inspectionDate: e.target.value})} 
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleUpdateVehicle}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Alert */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-headline">Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the vehicle record for 
+              <span className="font-bold"> {vehicleToDelete?.modelName || 'this vehicle'}</span> and remove all associated reminder schedules.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleConfirmDelete}>
+              Delete Vehicle
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
