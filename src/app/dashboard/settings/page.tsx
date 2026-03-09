@@ -1,4 +1,6 @@
+"use client"
 
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -7,11 +9,92 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { MessageSquare, Shield, Bell, User, ExternalLink, RefreshCw, QrCode, Copy } from 'lucide-react';
+import { MessageSquare, Shield, Bell, User, ExternalLink, RefreshCw, QrCode, Copy, Save, Loader2 } from 'lucide-react';
 import Image from 'next/image';
+import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
+import { collection, query, where, limit, doc, serverTimestamp } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 export default function SettingsPage() {
-  const lineBotUrl = "https://line.me/R/ti/p/@carcheck_flow"; // Placeholder URL
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Merchant state
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    inviteCode: '',
+  });
+
+  const merchantQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, 'merchants'),
+      where('ownerId', '==', user.uid),
+      limit(1)
+    );
+  }, [firestore, user]);
+
+  const { data: merchants, isLoading: isLoadingMerchant } = useCollection(merchantQuery);
+  const merchant = merchants?.[0];
+
+  useEffect(() => {
+    if (merchant) {
+      setFormData({
+        name: merchant.name || merchant.displayName || '',
+        email: merchant.email || '',
+        inviteCode: merchant.inviteCode || '',
+      });
+    }
+  }, [merchant]);
+
+  const handleSaveProfile = async () => {
+    if (!firestore || !user) return;
+    setIsSaving(true);
+
+    try {
+      if (merchant) {
+        const merchantRef = doc(firestore, 'merchants', merchant.id);
+        updateDocumentNonBlocking(merchantRef, {
+          ...formData,
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        const merchantsRef = collection(firestore, 'merchants');
+        await addDocumentNonBlocking(merchantsRef, {
+          ...formData,
+          ownerId: user.uid,
+          createdAt: serverTimestamp(),
+        });
+      }
+      
+      toast({
+        title: "Settings Saved",
+        description: "Your shop profile has been successfully updated.",
+      });
+    } catch (error) {
+      console.error("Save error:", error);
+      toast({
+        variant: "destructive",
+        title: "Save Failed",
+        description: "There was an error updating your profile.",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const lineBotUrl = "https://line.me/R/ti/p/@carcheck_flow";
+
+  if (isLoadingMerchant) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 max-w-4xl animate-in fade-in duration-500">
@@ -20,13 +103,69 @@ export default function SettingsPage() {
         <p className="text-muted-foreground">Manage your shop profile, team access, and LINE integration credentials.</p>
       </div>
 
-      <Tabs defaultValue="integration" className="space-y-6">
+      <Tabs defaultValue="profile" className="space-y-6">
         <TabsList className="bg-muted p-1 rounded-xl w-full sm:w-auto overflow-x-auto justify-start">
           <TabsTrigger value="profile" className="rounded-lg px-6">Profile</TabsTrigger>
           <TabsTrigger value="integration" className="rounded-lg px-6">Integration</TabsTrigger>
           <TabsTrigger value="notifications" className="rounded-lg px-6">Reminders</TabsTrigger>
           <TabsTrigger value="customer-entry" className="rounded-lg px-6">Customer Entry</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="profile" className="space-y-6">
+          <Card className="border-none shadow-sm">
+            <CardHeader>
+              <CardTitle className="font-headline flex items-center gap-2">
+                <User size={20} className="text-primary" />
+                Shop Profile
+              </CardTitle>
+              <CardDescription>Update your shop's public identity and contact information.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="shop-name">Shop Name</Label>
+                  <Input 
+                    id="shop-name" 
+                    value={formData.name} 
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    placeholder="Minato Auto Service" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="shop-email">Contact Email</Label>
+                  <Input 
+                    id="shop-email" 
+                    type="email"
+                    value={formData.email} 
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    placeholder="shop@example.com" 
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="invite-code">Shop Invite Code (Optional)</Label>
+                <div className="flex gap-2">
+                  <Input 
+                    id="invite-code" 
+                    value={formData.inviteCode} 
+                    onChange={(e) => setFormData({...formData, inviteCode: e.target.value})}
+                    placeholder="MINATO-2024" 
+                  />
+                  <Button variant="outline" size="icon" title="Generate New Code">
+                    <RefreshCw size={16} />
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">This code can be used for secondary verification or promotions.</p>
+              </div>
+            </CardContent>
+            <CardFooter className="justify-end border-t pt-6 bg-muted/10 rounded-b-lg">
+              <Button onClick={handleSaveProfile} disabled={isSaving} className="gap-2">
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
+                Save Changes
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="customer-entry" className="space-y-6">
           <Card className="border-none shadow-sm overflow-hidden">
@@ -96,47 +235,17 @@ export default function SettingsPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="channel-id">Channel ID</Label>
-                  <Input id="channel-id" value="1656784321" readOnly className="bg-muted/50" />
+              <div className="p-4 rounded-xl border bg-muted/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs font-bold uppercase text-muted-foreground">Webhook URL</p>
+                  <code className="text-sm break-all">https://carcheck-flow.web.app/api/line-webhook</code>
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="channel-secret">Channel Secret</Label>
-                  <Input id="channel-secret" type="password" value="••••••••••••••••" readOnly className="bg-muted/50" />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="access-token">Channel Access Token</Label>
-                  <div className="flex gap-2">
-                    <Input id="access-token" type="password" value="••••••••••••••••••••••••••••••••" readOnly className="bg-muted/50 flex-1" />
-                    <Button variant="outline" size="icon">
-                      <RefreshCw size={16} />
-                    </Button>
-                  </div>
-                </div>
+                <Button variant="ghost" size="sm" className="gap-2 whitespace-nowrap">
+                  Copy URL <ExternalLink size={14} />
+                </Button>
               </div>
-              <Separator />
-              <div className="space-y-4">
-                <h4 className="text-sm font-bold flex items-center gap-2">
-                  <Shield size={16} />
-                  Webhook Settings
-                </h4>
-                <div className="p-4 rounded-xl border bg-muted/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <p className="text-xs font-bold uppercase text-muted-foreground">Webhook URL</p>
-                    <code className="text-sm">https://carcheck-flow.web.app/api/line-webhook</code>
-                  </div>
-                  <Button variant="ghost" size="sm" className="gap-2">
-                    Copy URL <ExternalLink size={14} />
-                  </Button>
-                </div>
-                <p className="text-[10px] text-muted-foreground">Region: asia-northeast1 (Tokyo)</p>
-              </div>
+              <p className="text-[10px] text-muted-foreground">Deployment Region: asia-northeast1 (Tokyo)</p>
             </CardContent>
-            <CardFooter className="bg-muted/30 py-4 flex justify-between">
-              <p className="text-xs text-muted-foreground italic">Last verified: 2024-05-18 14:30 JST</p>
-              <Button size="sm">Update Integration</Button>
-            </CardFooter>
           </Card>
         </TabsContent>
 
@@ -174,39 +283,6 @@ export default function SettingsPage() {
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="justify-end">
-              <Button>Save Preferences</Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="profile" className="space-y-6">
-          <Card className="border-none shadow-sm">
-            <CardHeader>
-              <CardTitle className="font-headline flex items-center gap-2">
-                <User size={20} className="text-primary" />
-                Shop Profile
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="shop-name">Display Name</Label>
-                  <Input id="shop-name" defaultValue="Minato Auto Service" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="shop-phone">Contact Phone</Label>
-                  <Input id="shop-phone" defaultValue="03-1234-5678" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="shop-address">Business Address</Label>
-                <Input id="shop-address" defaultValue="1-2-3 Minato-ku, Tokyo, Japan" />
-              </div>
-            </CardContent>
-            <CardFooter className="justify-end">
-              <Button>Save Profile</Button>
-            </CardFooter>
           </Card>
         </TabsContent>
       </Tabs>

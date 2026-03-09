@@ -23,16 +23,31 @@ import {
   Settings, 
   LogOut, 
   Bell, 
-  User, 
   MessageCircle,
   BarChart3
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where, limit } from 'firebase/firestore';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { user } = useUser();
+  const firestore = useFirestore();
+
+  const merchantQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, 'merchants'),
+      where('ownerId', '==', user.uid),
+      limit(1)
+    );
+  }, [firestore, user]);
+
+  const { data: merchants } = useCollection(merchantQuery);
+  const merchant = merchants?.[0];
 
   const navItems = [
     { icon: <LayoutDashboard size={20} />, label: 'Overview', href: '/dashboard' },
@@ -41,6 +56,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { icon: <MessageCircle size={20} />, label: 'LINE Chat', href: '/dashboard/chat' },
     { icon: <BarChart3 size={20} />, label: 'Analytics', href: '/dashboard/analytics' },
   ];
+
+  const shopName = merchant?.name || merchant?.displayName || 'My Shop';
 
   return (
     <SidebarProvider>
@@ -79,7 +96,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <SidebarFooter className="p-4">
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Settings">
+                <SidebarMenuButton asChild isActive={pathname === '/dashboard/settings'} tooltip="Settings">
                   <Link href="/dashboard/settings">
                     <Settings size={20} />
                     <span className="font-medium">Settings</span>
@@ -118,12 +135,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div className="h-6 w-px bg-border"></div>
               <div className="flex items-center gap-3">
                 <div className="text-right hidden sm:block">
-                  <p className="text-sm font-bold leading-none">Minato Auto Service</p>
+                  <p className="text-sm font-bold leading-none">{shopName}</p>
                   <p className="text-xs text-muted-foreground leading-tight">Admin Portal</p>
                 </div>
                 <Avatar className="h-10 w-10 border-2 border-primary/20">
-                  <AvatarImage src="https://picsum.photos/seed/shop1/200/200" />
-                  <AvatarFallback>MA</AvatarFallback>
+                  <AvatarImage src={`https://picsum.photos/seed/${user?.uid}/200/200`} />
+                  <AvatarFallback>{shopName.substring(0, 2).toUpperCase()}</AvatarFallback>
                 </Avatar>
               </div>
             </div>
