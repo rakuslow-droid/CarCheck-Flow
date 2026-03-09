@@ -1,6 +1,7 @@
+
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,17 +10,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { MessageSquare, Shield, Bell, User, ExternalLink, RefreshCw, QrCode, Copy, Save, Loader2 } from 'lucide-react';
-import Image from 'next/image';
+import { MessageSquare, Shield, Bell, User, ExternalLink, RefreshCw, QrCode, Copy, Save, Loader2, Download } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { collection, query, where, limit, doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { QRCodeCanvas } from 'qrcode.react';
 
 export default function SettingsPage() {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const qrRef = useRef<HTMLDivElement>(null);
 
   // Merchant state
   const [formData, setFormData] = useState({
@@ -86,7 +88,36 @@ export default function SettingsPage() {
     }
   };
 
-  const lineBotUrl = "https://line.me/R/ti/p/@carcheck_flow";
+  // Generate LINE URL with ref parameter
+  const lineBotId = "@carcheck_flow";
+  const inviteCode = formData.inviteCode || merchant?.id || "default";
+  const lineBotUrl = `https://line.me/R/ti/p/${lineBotId}?ref=${encodeURIComponent(inviteCode)}`;
+
+  const downloadQRCode = () => {
+    const canvas = document.getElementById('merchant-qr-code') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const url = canvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `CarCheck-Flow-QR-${inviteCode}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({
+      title: "QR Code Downloaded",
+      description: "You can now print this code for your shop.",
+    });
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Link Copied",
+      description: "URL has been copied to your clipboard.",
+    });
+  };
 
   if (isLoadingMerchant) {
     return (
@@ -143,7 +174,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="invite-code">Shop Invite Code (Optional)</Label>
+                <Label htmlFor="invite-code">Shop Invite Code (Used for QR Tracking)</Label>
                 <div className="flex gap-2">
                   <Input 
                     id="invite-code" 
@@ -151,11 +182,11 @@ export default function SettingsPage() {
                     onChange={(e) => setFormData({...formData, inviteCode: e.target.value})}
                     placeholder="MINATO-2024" 
                   />
-                  <Button variant="outline" size="icon" title="Generate New Code">
+                  <Button variant="outline" size="icon" title="Generate New Code" onClick={() => setFormData({...formData, inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase()})}>
                     <RefreshCw size={16} />
                   </Button>
                 </div>
-                <p className="text-[10px] text-muted-foreground">This code can be used for secondary verification or promotions.</p>
+                <p className="text-[10px] text-muted-foreground">This code is embedded in your QR code to track referrals.</p>
               </div>
             </CardContent>
             <CardFooter className="justify-end border-t pt-6 bg-muted/10 rounded-b-lg">
@@ -179,25 +210,35 @@ export default function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col md:flex-row items-center gap-12 pt-8">
-              <div className="bg-white p-6 rounded-2xl shadow-xl border-4 border-primary/10">
-                <Image 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(lineBotUrl)}`}
-                  alt="LINE Registration QR Code"
-                  width={250}
-                  height={250}
-                  className="rounded-lg"
-                />
-                <div className="mt-4 text-center">
+              <div className="bg-white p-6 rounded-2xl shadow-xl border-4 border-primary/10 flex flex-col items-center gap-4">
+                <div ref={qrRef} className="p-2 bg-white">
+                  <QRCodeCanvas 
+                    id="merchant-qr-code"
+                    value={lineBotUrl} 
+                    size={240}
+                    level="H"
+                    includeMargin={false}
+                    imageSettings={{
+                      src: "https://picsum.photos/seed/car/40/40",
+                      x: undefined,
+                      y: undefined,
+                      height: 40,
+                      width: 40,
+                      excavate: true,
+                    }}
+                  />
+                </div>
+                <div className="text-center">
                   <Badge className="bg-primary text-white font-bold">SCAN TO JOIN</Badge>
                 </div>
               </div>
-              <div className="space-y-6 flex-1">
+              <div className="space-y-6 flex-1 w-full">
                 <div className="space-y-2">
                   <h4 className="font-bold text-lg">Direct Link</h4>
                   <p className="text-sm text-muted-foreground">Share this link directly with customers or use it in email campaigns.</p>
                   <div className="flex gap-2">
-                    <Input value={lineBotUrl} readOnly className="bg-muted/50 font-mono text-xs" />
-                    <Button variant="outline" size="icon">
+                    <Input value={lineBotUrl} readOnly className="bg-muted/50 font-mono text-[10px]" />
+                    <Button variant="outline" size="icon" onClick={() => copyToClipboard(lineBotUrl)}>
                       <Copy size={16} />
                     </Button>
                   </div>
@@ -211,10 +252,13 @@ export default function SettingsPage() {
                     <li>Customer scans the QR code to add your shop on LINE.</li>
                     <li>They send a photo of their inspection certificate or sticker.</li>
                     <li>Our AI extracts the date and adds them to your dashboard.</li>
-                    <li>Automated reminders are scheduled based on your preferences.</li>
+                    <li>Referral tag <strong>{inviteCode}</strong> is automatically recorded.</li>
                   </ol>
                 </div>
-                <Button className="w-full bg-primary font-bold">Download QR Kit (.zip)</Button>
+                <Button className="w-full bg-primary font-bold gap-2 h-12" onClick={downloadQRCode}>
+                  <Download size={18} />
+                  Download QR Kit (.png)
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -240,7 +284,7 @@ export default function SettingsPage() {
                   <p className="text-xs font-bold uppercase text-muted-foreground">Webhook URL</p>
                   <code className="text-sm break-all">https://carcheck-flow.web.app/api/line-webhook</code>
                 </div>
-                <Button variant="ghost" size="sm" className="gap-2 whitespace-nowrap">
+                <Button variant="ghost" size="sm" className="gap-2 whitespace-nowrap" onClick={() => copyToClipboard("https://carcheck-flow.web.app/api/line-webhook")}>
                   Copy URL <ExternalLink size={14} />
                 </Button>
               </div>
