@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase/init";
-import { collection, query, getDocs, where, Timestamp } from "firebase/firestore";
-import { addDays, format, parseISO } from "date-fns";
+import { collection, query, getDocs, where } from "firebase/firestore";
+import { addDays, format } from "date-fns";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Endpoint to be triggered by an external scheduler (e.g., Cloud Scheduler).
- * It scans all vehicles across all merchants and sends LINE reminders.
+ * Endpoint to be triggered by an external scheduler.
+ * Sends personalized reminders with Quick Replies for easy customer action.
  */
 export async function GET(req: NextRequest) {
-  // Simple security check for cron (In production, use a secret header or OIDC)
-  const authHeader = req.headers.get("authorization");
   const CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 
   if (!CHANNEL_ACCESS_TOKEN) {
@@ -24,7 +22,6 @@ export async function GET(req: NextRequest) {
   const results = { sent: 0, skipped: 0, errors: 0 };
   const today = new Date();
   
-  // Targets: 30 days and 90 days from now
   const targetDates = [
     format(addDays(today, 30), "yyyy-MM-dd"),
     format(addDays(today, 90), "yyyy-MM-dd")
@@ -38,7 +35,6 @@ export async function GET(req: NextRequest) {
       const shopName = merchantData.name || "当ショップ";
       
       const vehiclesRef = collection(firestore, "merchants", merchantDoc.id, "vehicles");
-      // Find vehicles expiring on our target dates
       const q = query(vehiclesRef, where("inspectionDate", "in", targetDates));
       const vehiclesSnap = await getDocs(q);
 
@@ -48,10 +44,11 @@ export async function GET(req: NextRequest) {
 
         const daysRemaining = targetDates[0] === vehicle.inspectionDate ? 30 : 90;
         
-        const message = 
+        const messageText = 
           `【${shopName}】より大切なお知らせです。\n\n` +
-          `ご登録いただいているお車の車検満了日（${vehicle.inspectionDate}）まで、残り約${daysRemaining}日となりました。\n\n` +
-          `お早めのご予約をお勧めしております。本メッセージへの返信、またはお電話にてお気軽にご相談ください！`;
+          `ご登録のお車（${vehicle.plateNumber || '登録車両'}）の車検満了日まで残り${daysRemaining}日となりました。\n\n` +
+          `満了日: ${vehicle.inspectionDate}\n\n` +
+          `ご予約やご相談は、下のメニューから簡単に行えます。`;
 
         try {
           const response = await fetch("https://api.line.me/v2/bot/message/push", {
@@ -62,18 +59,47 @@ export async function GET(req: NextRequest) {
             },
             body: JSON.stringify({
               to: vehicle.lineUserId,
-              messages: [{ type: "text", text: message }],
+              messages: [{
+                type: "text",
+                text: messageText,
+                quickReply: {
+                  items: [
+                    {
+                      type: "action",
+                      action: {
+                        type: "message",
+                        label: "予約したい",
+                        text: "車検の予約をお願いします"
+                      }
+                    },
+                    {
+                      type: "action",
+                      action: {
+                        type: "message",
+                        label: "見積もりがほしい",
+                        text: "車検の見積もりを希望します"
+                      }
+                    },
+                    {
+                      type: "action",
+                      action: {
+                        type: "uri",
+                        label: "電話で相談",
+                        uri: `tel:0000000000` // Placeholder for shop phone
+                      }
+                    }
+                  ]
+                }
+              }],
             }),
           });
 
           if (response.ok) {
             results.sent++;
           } else {
-            console.error("Failed to send push:", await response.text());
             results.errors++;
           }
         } catch (e) {
-          console.error("Push Error:", e);
           results.errors++;
         }
       }

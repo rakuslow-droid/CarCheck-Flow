@@ -26,7 +26,7 @@ async function replyToLine(
 ) {
   if (!accessToken) return;
   try {
-    const response = await fetch("https://api.line.me/v2/bot/message/reply", {
+    await fetch("https://api.line.me/v2/bot/message/reply", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -37,11 +37,34 @@ async function replyToLine(
         messages: [{ type: "text", text }],
       }),
     });
-    if (!response.ok) {
-      console.error("LINE API returned error:", await response.text());
-    }
   } catch (error) {
     console.error("LINE Reply Error:", error);
+  }
+}
+
+/**
+ * Helper to push a message to a specific user (e.g. notify owner)
+ */
+async function pushToLine(
+  to: string,
+  text: string,
+  accessToken: string | undefined
+) {
+  if (!accessToken || !to) return;
+  try {
+    await fetch("https://api.line.me/v2/bot/message/push", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        to,
+        messages: [{ type: "text", text }],
+      }),
+    });
+  } catch (error) {
+    console.error("LINE Push Error:", error);
   }
 }
 
@@ -78,12 +101,10 @@ export async function POST(req: NextRequest) {
     const signature = req.headers.get("x-line-signature");
 
     if (!CHANNEL_SECRET || !CHANNEL_ACCESS_TOKEN) {
-      console.error("Critical: LINE environment variables are missing.");
       return NextResponse.json({ error: "Configuration Error" }, { status: 500 });
     }
 
     if (!verifySignature(rawBody, signature, CHANNEL_SECRET)) {
-      console.warn("Invalid LINE Signature received");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -93,24 +114,24 @@ export async function POST(req: NextRequest) {
 
     const { firestore } = initializeFirebase();
     if (!firestore) {
-      console.error("Firebase Firestore is not initialized.");
       return NextResponse.json({ error: "Database Unavailable" }, { status: 500 });
     }
 
     for (const event of events) {
       const lineUserId = event.source.userId;
 
-      // Handle Text Messages (Management Commands)
+      // 1. Handle Text Messages (Management Commands & Customer Inquiries)
       if (event.type === "message" && event.message.type === "text") {
         const text = event.message.text;
 
-        if (text === "登録状況" || text === "レポート") {
-          // Check if sender is a registered admin for any merchant
-          const merchantsRef = collection(firestore, "merchants");
-          const adminQuery = query(merchantsRef, where("adminLineUserId", "==", lineUserId), limit(1));
-          const adminSnap = await getDocs(adminQuery);
+        // Admin Command Check
+        const merchantsRef = collection(firestore, "merchants");
+        const adminQuery = query(merchantsRef, where("adminLineUserId", "==", lineUserId), limit(1));
+        const adminSnap = await getDocs(adminQuery);
 
-          if (!adminSnap.empty) {
+        if (!adminSnap.empty) {
+          // It's an admin user
+          if (text === "登録状況" || text === "レポート") {
             const merchantDoc = adminSnap.docs[0];
             const vehiclesRef = collection(firestore, "merchants", merchantDoc.id, "vehicles");
             const countSnap = await getCountFromServer(vehiclesRef);
@@ -118,15 +139,30 @@ export async function POST(req: NextRequest) {
 
             const replyMsg = `【管理者レポート】\n現在の総登録車両数は ${count} 台です。\n詳細はダッシュボードをご確認ください。`;
             await replyToLine(event.replyToken, replyMsg, CHANNEL_ACCESS_TOKEN);
-          } else {
-            // Not an admin, or ID not linked. Provide user ID for linking.
-            const helpMsg = `管理コマンドを検知しました。\nこのLINEアカウントはまだ管理者として登録されていません。\n\nあなたのLINE User ID:\n${lineUserId}\n\nこのIDを管理画面の「設定 > 管理者連携」に入力してください。`;
-            await replyToLine(event.replyToken, helpMsg, CHANNEL_ACCESS_TOKEN);
+            continue;
+          }
+        }
+
+        // Customer Inquiry Handling (If not an admin command)
+        if (text.includes("予約") || text.includes("見積もり") || text.includes("相談")) {
+          // Notify the first merchant owner as a notification (prototype logic)
+          const allMerchants = await getDocs(query(collection(firestore, "merchants"), limit(1)));
+          if (!allMerchants.empty) {
+            const m = allMerchants.docs[0].data();
+            const shopName = m.name || "当ショップ";
+            
+            if (m.adminLineUserId) {
+              const notifyMsg = `【お客様からの問い合わせ】\nユーザー(${lineUserId.substring(0,8)})様より「${text}」とのメッセージがありました。\nダッシュボードまたは本チャットで対応してください。`;
+              await pushToLine(m.adminLineUserId, notifyMsg, CHANNEL_ACCESS_TOKEN);
+            }
+
+            const customerReply = `【${shopName}】メッセージありがとうございます。担当者が内容を確認し、折り返しご連絡いたします。今しばらくお待ちください。`;
+            await replyToLine(event.replyToken, customerReply, CHANNEL_ACCESS_TOKEN);
           }
         }
       }
 
-      // Handle Image Messages (Vehicle Inspection OCR)
+      // 2. Handle Image Messages (Vehicle Inspection OCR)
       if (event.type === "message" && event.message.type === "image") {
         const { replyToken } = event;
 
@@ -135,8 +171,6 @@ export async function POST(req: NextRequest) {
           const aiResult = await extractInspectionDateFromImage({ imageDataUri });
 
           if (aiResult.inspectionDate) {
-            // Find the merchant linked to this follow/interaction
-            // For prototype: we check if there's a merchant this user is associated with or fallback to first
             const merchantsRef = collection(firestore, "merchants");
             const merchantSnap = await getDocs(query(merchantsRef, limit(1)));
 
@@ -160,19 +194,14 @@ export async function POST(req: NextRequest) {
                 `【${shopName}】公式LINEへのご登録ありがとうございます！\n\n` +
                 `AI解析が完了しました！\n` +
                 `車検満了日は【${aiResult.inspectionDate}】で登録されました。\n\n` +
-                `時期が近づきましたら、こちらからリマインドをお送りいたします。どうぞ安心してお待ちください！\n\n` +
-                `▼登録情報の確認はこちら\n` +
-                `https://carcheck-flow.web.app/status/${lineUserId}`;
+                `時期が近づきましたら、こちらからリマインドをお送りいたします。どうぞ安心してお待ちください！`;
 
               await replyToLine(replyToken, replyMessage, CHANNEL_ACCESS_TOKEN);
-            } else {
-              await replyToLine(replyToken, "店舗情報の登録が完了していないため、車両情報を登録できませんでした。", CHANNEL_ACCESS_TOKEN);
             }
           } else {
             await replyToLine(replyToken, "申し訳ありません。画像から車検日を読み取ることができませんでした。もう一度、はっきりと写った写真を送っていただけますか？", CHANNEL_ACCESS_TOKEN);
           }
         } catch (error: any) {
-          console.error("Error processing LINE image:", error);
           await replyToLine(replyToken, "画像の解析中にエラーが発生しました。しばらくしてから再度お試しください。", CHANNEL_ACCESS_TOKEN);
         }
       }
@@ -180,7 +209,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ status: "ok" });
   } catch (error: any) {
-    console.error("Webhook critical error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
