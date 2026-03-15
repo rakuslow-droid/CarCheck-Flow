@@ -16,15 +16,18 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Car, Loader2 } from "lucide-react";
-// Firebase SDK から直接インポート
+
+// --- プロジェクト共通のFirebase設定を使用 ---
+import { initializeFirebase } from "@/firebase/init";
 import { GoogleAuthProvider, signInWithPopup, getAuth } from "firebase/auth";
-// プロジェクト内の関数をインポート（authはここから消しました）
 import { useAuth, initiateEmailSignUp } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
 
 export default function RegisterPage() {
   const auth = useAuth();
   const { toast } = useToast();
+  const router = useRouter(); // routerを使用
   const [isLoading, setIsLoading] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [formData, setFormData] = useState({
@@ -45,12 +48,31 @@ export default function RegisterPage() {
     }
 
     setIsLoading(true);
+
     try {
-      // getAuth() で直接認証インスタンスを取得
-      const firebaseAuth = getAuth();
+      // 初期化して firebaseApp と auth を取得
+      const { firebaseApp, auth: firebaseAuth } = initializeFirebase();
+
+      if (!firebaseApp || !firebaseAuth) {
+        throw new Error(
+          "Firebaseの初期化に失敗しました。設定を確認してください。",
+        );
+      }
+
+      const { GoogleAuthProvider, signInWithPopup } =
+        await import("firebase/auth");
       const provider = new GoogleAuthProvider();
+
+      // ログイン実行
       await signInWithPopup(firebaseAuth, provider);
-      // 成功時は自動的にダッシュボードへリダイレクトされる設計です
+
+      toast({
+        title: "ログイン成功",
+        description: "ダッシュボードへ移動します...",
+      });
+
+      // 確実に遷移させるため window.location を使用
+      window.location.href = "/dashboard";
     } catch (error: any) {
       console.error("Google Sign-In Error:", error);
       toast({
@@ -65,13 +87,11 @@ export default function RegisterPage() {
   // --- メールアドレス登録処理 ---
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    // useAuthフックが値を返すのを待つ、またはエラーチェック
     if (!auth) {
       toast({
         variant: "destructive",
         title: "エラー",
-        description:
-          "認証システムを初期化できませんでした。リロードしてください。",
+        description: "認証システムを初期化できませんでした。",
       });
       return;
     }
@@ -96,12 +116,12 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     try {
-      // initiateEmailSignUp は非同期なので await が必須です
       await initiateEmailSignUp(auth, formData.email, formData.password);
       toast({
         title: "登録成功",
         description: "アカウントが作成されました。",
       });
+      router.push("/dashboard");
     } catch (error: any) {
       console.error("Registration Error:", error);
       toast({
@@ -149,6 +169,7 @@ export default function RegisterPage() {
               onClick={handleGoogleSignIn}
               disabled={isLoading}
             >
+              {/* GoogleアイコンのSVG部分はそのまま */}
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
